@@ -17,16 +17,14 @@
 
 ## 📑 Mục Lục
 1. [Giới Thiệu Đề Tài](#1-giới-thiệu-đề-tài)
-2. [Lý Do Chọn Đề Tài & Cảm Hứng Mã Nguồn Mở](#2-lý-do-chọn-đề-tài--cảm-hứng-mã-nguồn-mở)
-3. [Mục Tiêu & Phạm Vi Đề Tài](#3-mục-tiêu--phạm-vi-đề-tài)
-4. [Kiến Trúc Tổng Thể & Công Nghệ](#4-kiến-trúc-tổng-thể--công-nghệ)
-5. [4 Trụ Cột Chức Năng Cốt Lõi (Vertical Slices)](#5-4-trụ-cột-chức-năng-cốt-lõi-vertical-slices)
-6. [Luồng Nghiệp Vụ Xuyên Suốt (End-to-End Workflow)](#6-luồng-nghiệp-vụ-xuyên-suốt-end-to-end-workflow)
-7. [Phân Quyền Người Dùng](#7-phân-quyền-người-dùng)
-8. [Phân Công Nhiệm Vụ Thành Viên](#8-phân-công-nhiệm-vụ-thành-viên)
-9. [Lộ Trình Triển Khai 6 Tuần](#9-lộ-trình-triển-khai-6-tuần)
-10. [Hướng Dẫn Thiết Lập & Khởi Chạy Ứng Dụng](#10-hướng-dẫn-thiết-lập--khởi-chạy-ứng-dụng)
-11. [Quy Chuẩn Quản Trị Mã Nguồn & Git](#11-quy-chuẩn-quản-trị-mã-nguồn--git)
+2. [Mục Tiêu & Phạm Vi Đề Tài](#2-mục-tiêu--phạm-vi-đề-tài)
+3. [Kiến Trúc Tổng Thể & Công Nghệ](#3-kiến-trúc-tổng-thể--công-nghệ)
+4. [4 Trụ Cột Chức Năng Cốt Lõi (Vertical Slices)](#4-4-trụ-cột-chức-năng-cốt-lõi-vertical-slices)
+5. [Luồng Nghiệp Vụ Xuyên Suốt (End-to-End Workflow)](#5-luồng-nghiệp-vụ-xuyên-suốt-end-to-end-workflow)
+6. [Phân Quyền Người Dùng](#6-phân-quyền-người-dùng)
+7. [Phân Công Nhiệm Vụ Thành Viên](#7-phân-công-nhiệm-vụ-thành-viên)
+8. [Hướng Dẫn Thiết Lập & Khởi Chạy Ứng Dụng](#8-hướng-dẫn-thiết-lập--khởi-chạy-ứng-dụng)
+9. [Quy Chuẩn Quản Trị Mã Nguồn & Git](#9-quy-chuẩn-quản-trị-mã-nguồn--git)
 
 ---
 
@@ -46,29 +44,12 @@ Trên thực tế, rất nhiều kế hoạch du lịch của sinh viên bị tr
 
 ---
 
-## 2. Lý Do Chọn Đề Tài & Cảm Hứng Mã Nguồn Mở
+## 2. Mục Tiêu & Phạm Vi Đề Tài
 
-Đề tài được xây dựng trên cơ sở nghiên cứu và kế thừa sâu sắc kiến trúc UI/UX cùng mô hình dữ liệu của hai dự án mã nguồn mở tiêu biểu trên GitHub:
-
-1. **[Cashew](https://github.com/jameskokoska/Cashew) (Quản lý ngân sách & Tiết kiệm trực quan):**
-   - Kế thừa cơ chế **Mục tiêu tiết kiệm (Savings Goal)** và **Hũ ngân sách dự kiến (Budget Envelopes)** để phân bổ kinh phí chuyến đi vào các hạng mục rõ ràng.
-   - Kế thừa giao diện **bàn phím máy tính nhập tiền nhanh** tích hợp phép tính cộng/trừ trực tiếp.
-2. **[DailyYou](https://github.com/Demizo/Daily_You) (Theo dõi kỷ luật thói quen & Nhật ký hàng ngày):**
-   - Kế thừa cơ chế **Lịch theo dõi chuỗi ngày kỷ luật (Saving Streak Calendar)** để ghi nhận những ngày/tuần thành viên hoàn thành đúng hạn việc đóng quỹ.
-   - Gắn biểu tượng cảm xúc, ghi chú và nhật ký hình ảnh minh chứng.
-3. **Khai thác phần cứng thiết bị & dịch vụ số hiện đại:**
-   - **Google Maps SDK & Places API:** Đề xuất điểm đến thông minh kèm ước tính thời gian và chi phí.
-   - **Liên kết Quỹ nhóm MoMo:** Quét mã QR (`mobile_scanner`) và Deeplink mở trực tiếp ứng dụng MoMo nạp quỹ 1 chạm.
-   - **Camera SDK & Google ML Kit (OCR):** Chụp ảnh xác thực hoàn thành Checklist chuẩn bị, chụp biên lai tiết kiệm và quét hóa đơn tự động bóc tách số tiền.
-
----
-
-## 3. Mục Tiêu & Phạm Vi Đề Tài
-
-### 3.1. Mục tiêu tổng quát
+### 2.1. Mục tiêu tổng quát
 Xây dựng hoàn chỉnh ứng dụng di động đa nền tảng **Travel Buddy** bằng Flutter & Dart, áp dụng kiến trúc **Feature-First** kết hợp **Riverpod**, **GoRouter** và **Firebase**. Ứng dụng giúp người dùng thiết lập mục tiêu chuyến đi, quản lý toàn diện Checklist việc cần làm theo mốc thời gian, rèn luyện kỷ luật tích lũy quỹ liên kết ví MoMo, lập kế hoạch lịch trình điểm đến và kiểm soát ngân sách minh bạch.
 
-### 3.2. Phạm vi đề tài (Project Scope)
+### 2.2. Phạm vi đề tài (Project Scope)
 - **Trong phạm vi (In-Scope):**
   - Đóng gói và kiểm thử ứng dụng di động trên Android (APK) và iOS.
   - Quản lý mục tiêu chuyến đi & đếm ngược thời gian (Countdown).
@@ -83,7 +64,7 @@ Xây dựng hoàn chỉnh ứng dụng di động đa nền tảng **Travel Budd
 
 ---
 
-## 4. Kiến Trúc Tổng Thể & Công Nghệ
+## 3. Kiến Trúc Tổng Thể & Công Nghệ
 
 Hệ thống được thiết kế theo mô hình kiến trúc phân tầng kết hợp **Feature-First Architecture**, đảm bảo tính độc lập và khả năng mở rộng cao giữa các module:
 
@@ -121,7 +102,7 @@ flowchart TD
     Repo --> MLKit
 ```
 
-### 4.1. Công nghệ sử dụng
+### 3.1. Công nghệ sử dụng
 - **Ngôn ngữ & Framework:** Dart (`>= 3.0.0`), Flutter SDK (`>= 3.10.0`).
 - **Quản lý trạng thái:** `flutter_riverpod` (`^3.5.0`) – Đảm bảo compile-safe, độc lập với BuildContext.
 - **Điều hướng:** `go_router` (`^18.1.4`) – Declarative Routing, hỗ trợ Deep Link và Auth Guard.
@@ -134,7 +115,7 @@ flowchart TD
 - **Thị giác máy tính (AI/OCR) & Biểu đồ:** `google_mlkit_text_recognition`, `fl_chart` (`^1.3.1`).
 - **Code Generation:** `freezed` (`^3.2.5`), `json_serializable` (`^6.15.2`), `build_runner` (`^2.15.1`).
 
-### 4.2. Cấu trúc thư mục mã nguồn (`nhom08-65ktpm/src/lib/`)
+### 3.2. Cấu trúc thư mục mã nguồn (`nhom08-65ktpm/src/lib/`)
 ```text
 lib/
 ├── core/                                  # Thành phần dùng chung toàn hệ thống
@@ -165,7 +146,7 @@ lib/
 
 ---
 
-## 5. 4 Trụ Cột Chức Năng Cốt Lõi (Vertical Slices)
+## 4. 4 Trụ Cột Chức Năng Cốt Lõi (Vertical Slices)
 
 Dự án được phân chia thành 4 module độc lập theo chiều dọc (Vertical Slices), mỗi module liên kết qua `tripId`:
 
@@ -208,7 +189,7 @@ Dự án được phân chia thành 4 module độc lập theo chiều dọc (Ve
 
 ---
 
-## 6. Luồng Nghiệp Vụ Xuyên Suốt (End-to-End Workflow)
+## 5. Luồng Nghiệp Vụ Xuyên Suốt (End-to-End Workflow)
 
 Quy trình sử dụng ứng dụng trải qua 10 bước tuần tự từ lúc nhen nhóm ý tưởng đến khi kết thúc chuyến đi:
 
@@ -227,7 +208,7 @@ flowchart TD
 
 ---
 
-## 7. Phân Quyền Người Dùng
+## 6. Phân Quyền Người Dùng
 
 Trong mỗi kế hoạch chuyến đi, hệ thống phân định rõ 2 vai trò:
 
@@ -245,7 +226,7 @@ Trong mỗi kế hoạch chuyến đi, hệ thống phân định rõ 2 vai trò
 
 ---
 
-## 8. Phân Công Nhiệm Vụ Thành Viên
+## 7. Phân Công Nhiệm Vụ Thành Viên
 
 Dự án được phân chia theo mô hình **Vertical Slices** (mỗi thành viên phụ trách trọn vẹn từ giao diện UI, State Management Riverpod đến Database Firebase của một module độc lập):
 
@@ -258,21 +239,9 @@ Dự án được phân chia theo mô hình **Vertical Slices** (mỗi thành vi
 
 ---
 
-## 9. Lộ Trình Triển Khai 6 Tuần
+## 8. Hướng Dẫn Thiết Lập & Khởi Chạy Ứng Dụng
 
-| Giai đoạn | Thời gian | Nội dung công việc chính | Sản phẩm bàn giao (Deliverables) |
-| :--- | :---: | :--- | :--- |
-| **Sprint 0: Phân tích & Thiết kế** | Tuần 1 | • Phân tích kiến trúc UI/Database của Cashew và DailyYou.<br>• Thống nhất nghiệp vụ Checklist chuẩn bị và kỷ luật quỹ MoMo.<br>• Thiết kế Figma, tạo cấu trúc GitHub Repo Feature-First và bộ Data Models (Freezed). | • Bản Đề cương chi tiết v3.<br>• Thiết kế Prototype Figma.<br>• Bộ Data Models & khung Core ứng dụng. |
-| **Sprint 1: Core & Phần cứng/API** | Tuần 2 | • Hoàn thiện Module 1 (Auth, Tạo Trip Goal Countdown, Checklist cơ bản).<br>• Tích hợp thử nghiệm MoMo Deeplink/QR Scanner, Google Maps/Places API và Camera OCR. | • Ứng dụng điều hướng qua 4 tab.<br>• Gọi thành công Maps API, Camera và mở MoMo. |
-| **Sprint 2: Nghiệp vụ Chuyên sâu** | Tuần 3 - 4 | • Hoàn thiện Checklist mốc thời gian & Camera xác thực (Module 1).<br>• Hoàn thiện Lịch Streak DailyYou & Nạp quỹ MoMo (Module 2).<br>• Lập lịch trình đa yếu tố kèm Polyline lộ trình (Module 3).<br>• Hũ ngân sách Cashew & Camera OCR bóc tách số tiền (Module 4). | • Bản **Alpha**: 4 module hoạt động đồng bộ với dữ liệu thời gian thực trên Cloud Firestore. |
-| **Sprint 3: Tích hợp & Kiểm thử** | Tuần 5 | • Merge các nhánh feature vào develop.<br>• Kiểm thử trên thiết bị thật (Thông báo nhắc việc, quét QR Quỹ MoMo, dẫn đường Maps, quét hóa đơn OCR).<br>• Tối ưu UI/UX, xử lý lỗi crash, null safety. | • Bản **Beta** ổn định, đạt hiệu năng mượt mà trên Android và iOS. |
-| **Release: Đóng gói & Báo cáo** | Tuần 6 | • Build file Android APK Release hoàn chỉnh.<br>• Viết báo cáo tổng kết đồ án, chuẩn bị slide thuyết trình và kịch bản demo trực tiếp trước giảng viên. | • File **APK Release**.<br>• Báo cáo tổng kết đồ án (PDF).<br>• Slide thuyết trình & Demo. |
-
----
-
-## 10. Hướng Dẫn Thiết Lập & Khởi Chạy Ứng Dụng
-
-### 10.1. Yêu cầu môi trường (Prerequisites)
+### 8.1. Yêu cầu môi trường (Prerequisites)
 1. **Flutter SDK:** Phiên bản `>= 3.10.0` (Khuyến nghị Flutter 3.24 trở lên). Kiểm tra bằng:
    ```bash
    flutter --version
@@ -284,7 +253,7 @@ Dự án được phân chia theo mô hình **Vertical Slices** (mỗi thành vi
    - Thiết bị thật đã bật chế độ *Developer Options* và *USB Debugging*.
 5. **Firebase CLI & FlutterFire:** Đã cài đặt [Firebase CLI](https://firebase.google.com/docs/cli) để liên kết dự án.
 
-### 10.2. Các bước cài đặt và chạy ứng dụng
+### 8.2. Các bước cài đặt và chạy ứng dụng
 
 #### Bước 1: Clone kho lưu trữ và chuyển đến nhánh nhóm
 ```bash
@@ -315,7 +284,7 @@ flutter run
 
 ---
 
-## 11. Quy Chuẩn Quản Trị Mã Nguồn & Git
+## 9. Quy Chuẩn Quản Trị Mã Nguồn & Git
 
 Nhóm tuân thủ nghiêm ngặt quy chế nộp bài và quản lý mã nguồn của học phần:
 - **Kho Fork cá nhân của nhóm trưởng:** `https://github.com/dinhan125/project-ptuddd`

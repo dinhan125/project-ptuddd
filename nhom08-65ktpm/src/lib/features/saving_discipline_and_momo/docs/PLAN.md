@@ -1,201 +1,97 @@
-# 🗓️ Implementation Plan (PLAN.md)
-## Module 2: Saving Discipline & MoMo Group Fund (`saving_discipline_and_momo`)
-### Lead Engineer: Nguyen Xuan Binh (Member #2 - 64KTPM5)
-**Project:** Travel Buddy (PTUDDD - Group 08)  
-**Execution Boundary:** Strictly limited to `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/`
+# 🗓️ Kế hoạch Triển khai (PLAN.md)
+## Phân hệ 2: Kỷ luật Tích góp & Quỹ nhóm MoMo (`saving_discipline_and_momo`)
+### Kỹ sư phụ trách: Nguyễn Xuân Bình (MSV: 2251172252 - Lớp: 64KTPM5 - Thành viên #2)
+**Dự án:** Travel Buddy (PTUDDD - Nhóm 08)  
+**Phạm vi:** `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/`
 
 ---
 
-## 1. Implementation Strategy: Vertical Slices
-This plan uses a **Vertical Slices** approach. Instead of building horizontal layers (all models, then all UI), each phase delivers a fully verifiable, end-to-end slice of functionality (Model ➔ Repository ➔ Notifier ➔ UI Widget) that can be verified and demonstrated independently.
+## 1. Chiến lược Triển khai: Lát cắt Dọc (Vertical Slices)
+
+Kế hoạch được tổ chức thành 5 giai đoạn (Phase) độc lập, mỗi giai đoạn giải quyết trọn vẹn các yêu cầu nghiệp vụ từ Model ➔ Repository ➔ Provider ➔ Giao diện (UI):
 
 ```mermaid
 flowchart TD
-    P1["Phase 1: Foundations & Saving Plan Generator"] --> C1{"Checkpoint 1: Unit Tests & Logic Pass"}
-    C1 --> P2["Phase 2: MoMo Group Fund & Camera QR Scanner"]
-    P2 --> C2{"Checkpoint 2: QR Scan & Deeplink Pass"}
-    C2 --> P3["Phase 3: DailyYou Saving Streak Calendar"]
-    P3 --> C3{"Checkpoint 3: Streak Counter & UI Pass"}
-    C3 --> P4["Phase 4: Receipt Upload & Host Approval Flow"]
-    P4 --> C4{"Checkpoint 4: E2E Fund Progress Flow"}
-    C4 --> P5["Phase 5: Route Integration & Quality Polish"]
+    P1["Giai đoạn 1: Nền tảng Dữ liệu & Thuật toán Chia nhỏ Kinh phí"] --> C1{"Checkpoint 1: Kiểm thử Đơn vị & Analyze Pass"}
+    C1 --> P2["Giai đoạn 2: Quỹ nhóm MoMo, Quét mã QR & Deeplink 1 chạm"]
+    P2 --> C2{"Checkpoint 2: Quét QR & Deeplink Pass"}
+    C2 --> P3["Giai đoạn 3: Lịch Chuỗi Kỷ luật DailyYou & Icon Cảm xúc"]
+    P3 --> C3{"Checkpoint 3: Hiển thị Streak & Ghi chú Pass"}
+    C3 --> P4["Giai đoạn 4: Tải Biên lai Lên Storage, Duyệt & Tiến độ Quỹ 100%"]
+    P4 --> C4{"Checkpoint 4: E2E Luồng Duyệt & Tiến độ Pass"}
+    C4 --> P5["Giai đoạn 5: Tích hợp Tuyến đường (Routes) & Kiểm tra Chất lượng"]
 ```
 
 ---
 
-## 2. Detailed Task Breakdown
+## 2. Chi tiết các Giai đoạn Triển khai
 
-### 🟢 Phase 1: Data Foundations & Saving Plan Generator
-
-#### Task 1.1: Define Data Models & Entities
-- **Description:** Implement immutable data structures for Fund Configuration, Saving Plans, Deposit Records, and Streaks.
-- **Acceptance Criteria:**
-  - Define `MoMoFundConfig`, `SavingPlan`, `DepositRecord`, and `MemberStreak`.
-  - Provide serialization/deserialization for Firestore `Timestamp` and JSON maps.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/models/momo_fund_config.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/models/saving_plan.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/models/deposit_record.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/models/member_streak.dart`
-- **Scope:** Medium (M)
-
-#### Task 1.2: Implement Saving Plan Calculator (`SavingCalculator`)
-- **Description:** Implement pure domain functions to partition target amounts into periodic installments based on the countdown duration and frequency (Daily, Weekly, Monthly).
-- **Acceptance Criteria:**
-  - Correctly calculates installment amounts and due dates.
-  - Automatically adjusts for short countdowns (< 7 days defaults to Daily).
-  - Rounds values to the nearest 1,000 VND and handles rounding remainders in the final installment.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/utils/saving_calculator.dart`
-- **Scope:** Small (S)
-
-#### Task 1.3: Build Saving Repository Layer
-- **Description:** Implement `SavingRepository` and `SavingRepositoryImpl` to handle Firestore reads/writes for fund configurations, plans, and deposit logs.
-- **Acceptance Criteria:**
-  - Clean CRUD operations for `momo_fund_config` and `saving_plans`.
-  - Realtime streams for fund progress and member deposits.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/repository/saving_repository.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/repository/saving_repository_impl.dart`
-- **Scope:** Medium (M)
-
-#### 🎯 Checkpoint 1: Foundation Verification
-- [ ] Data models compile with null safety.
-- [ ] Unit tests for `SavingCalculator` pass with 100% boundary test coverage.
-- [ ] Firestore repository mock tests execute without exceptions.
+### 🟢 Giai đoạn 1: Nền tảng Dữ liệu & Thuật toán Chia nhỏ Kinh phí (ĐÃ HOÀN THÀNH)
+- [x] **Task 1.1: Định nghĩa Data Models & Thực thể**
+  - Tạo `MoMoFundConfig`, `SavingPlan`, `DepositRecord`, `MemberStreak`.
+  - Hỗ trợ chuyển đổi với Cloud Firestore `Timestamp` và JSON.
+  - *Files:* `models/momo_fund_config.dart`, `models/saving_plan.dart`, `models/deposit_record.dart`, `models/member_streak.dart`.
+- [x] **Task 1.2: Cài đặt Thuật toán Chia nhỏ Kinh phí (`SavingCalculator`)**
+  - Phân bổ tổng tiền theo ngày/tuần/tháng dựa trên ngày đếm ngược đến chuyến đi.
+  - Làm tròn đến 1.000 VNĐ, bù trừ phần dư vào kỳ cuối cùng.
+  - Viết bộ unit test kiểm thử toàn diện các trường hợp biên (`saving_calculator_test.dart`).
+  - *Files:* `utils/saving_calculator.dart`.
+- [x] **Task 1.3: Xây dựng Lớp Lưu trữ Repository (`SavingRepository`)**
+  - Giao diện `SavingRepository` và cài đặt `SavingRepositoryImpl`.
+  - CRUD Firestore và xử lý giao dịch an toàn (Firestore Transaction).
+  - *Files:* `repository/saving_repository.dart`, `repository/saving_repository_impl.dart`.
 
 ---
 
-### 🟡 Phase 2: MoMo Group Fund & Camera QR Scanner
-
-#### Task 2.1: Host MoMo Fund Setup Screen
-- **Description:** Create the screen allowing the Fund Host to configure their MoMo phone number, fund title, target goal, and optional fund link.
-- **Acceptance Criteria:**
-  - Validates 10-digit Vietnamese phone numbers.
-  - Renders a dynamic QR code using `qr_flutter` if no external QR image is provided.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/momo_fund_config_screen.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/providers/momo_fund_provider.dart`
-- **Scope:** Medium (M)
-
-#### Task 2.2: Live Camera QR Scanner via `mobile_scanner`
-- **Description:** Implement a camera scanning view to scan MoMo payment/fund QR codes.
-- **Acceptance Criteria:**
-  - Handles runtime camera permission requests via `permission_handler`.
-  - Parses scanned QR payloads (extracting MoMo deep link or phone number) and navigates back with the result.
-  - Includes camera toggle (front/rear) and flash toggle buttons.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/qr_scanner_screen.dart`
-- **Scope:** Medium (M)
-
-#### Task 2.3: 1-Tap MoMo Deeplink & Payment View
-- **Description:** Implement the member deposit view with a 1-tap "Open MoMo" action and manual transfer details.
-- **Acceptance Criteria:**
-  - Executes `momo://` deep link via `url_launcher`.
-  - Provides a safe fallback when MoMo is not installed, featuring 1-tap copy buttons for phone number and transfer remarks.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/utils/momo_deeplink_helper.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/momo_deposit_screen.dart`
-- **Scope:** Small (S)
-
-#### 🎯 Checkpoint 2: MoMo Integration Verification
-- [ ] Fund configuration successfully persists to Firestore.
-- [ ] QR scanner accurately decodes barcode values without crashing.
-- [ ] Deeplink launcher triggers MoMo or displays the graceful fallback dialog.
+### 🟡 Giai đoạn 2: Quỹ nhóm MoMo, Quét mã QR & Deeplink 1 chạm
+- **Yêu cầu đáp ứng:**
+  - Tích hợp Quét mã QR (`mobile_scanner`) để quét mã Quỹ nhóm MoMo.
+  - Tích hợp nút Deeplink mở trực tiếp ứng dụng MoMo (`url_launcher`) để nộp quỹ 1 chạm kèm fallback sao chép thông tin.
+- **Chi tiết các tác vụ:**
+  - **Task 2.1: Màn hình Cấu hình Quỹ MoMo (Trưởng quỹ):** Nhập số điện thoại MoMo, tên quỹ, link quỹ, tự động hiển thị mã QR qua `qr_flutter`.
+    - *Files:* `presentation/screens/momo_fund_config_screen.dart`, `providers/momo_fund_provider.dart`.
+  - **Task 2.2: Màn hình Quét mã QR Camera (`mobile_scanner`):** Quét mã QR chuyển khoản MoMo bằng camera, kiểm tra quyền camera (`permission_handler`), hỗ trợ bật flash/đổi camera.
+    - *Files:* `presentation/screens/qr_scanner_screen.dart`.
+  - **Task 2.3: Bộ điều hướng Deeplink MoMo & Màn hình Nộp quỹ 1 chạm:** Mở scheme `momo://` kèm số tiền, số điện thoại và nội dung; hỗ trợ hộp thoại fallback 1-tap copy khi máy chưa cài MoMo.
+    - *Files:* `utils/momo_deeplink_helper.dart`, `presentation/screens/momo_deposit_screen.dart`.
 
 ---
 
-### 🟠 Phase 3: DailyYou-Style Saving Streak Calendar
-
-#### Task 3.1: Saving Streak Calculation Logic
-- **Description:** Implement domain logic for streak progression: incrementing `currentStreak` upon on-time deposits, maintaining `longestStreak`, and resetting `currentStreak` on missed deadlines.
-- **Acceptance Criteria:**
-  - Handles daily and weekly installment schedules accurately.
-  - Distinguishes between on-time, early, and delinquent payment states.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/providers/streak_calendar_provider.dart`
-- **Scope:** Small (S)
-
-#### Task 3.2: DailyYou Streak Calendar UI Widget
-- **Description:** Build a Material Design 3 monthly calendar grid displaying deposit statuses per day.
-- **Acceptance Criteria:**
-  - `CalendarDayCell` reflects status: Paid (Green), Due Today (Amber/Pulse), Overdue (Red/Grey).
-  - `StreakFireBadge` displays an animated flame icon 🔥 with the active streak count.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/streak_calendar_screen.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/widgets/calendar_day_cell.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/widgets/streak_fire_badge.dart`
-- **Scope:** Medium (M)
-
-#### Task 3.3: Emotion Tags & Saving Journal Dialog
-- **Description:** Allow members to attach an emotion badge and a short personal diary note to every deposit.
-- **Acceptance Criteria:**
-  - Dialog presents emoji choices: 😄 Excited, 😎 Confident, 😤 Determined, ☕ Skipped Coffee.
-  - Attaches emotion tag to `DepositRecord` and renders a mini-journal timeline below the calendar.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/widgets/emotion_selector_dialog.dart`
-- **Scope:** Small (S)
-
-#### 🎯 Checkpoint 3: Streak & Gamification Verification
-- [ ] Streak counter increments reactively upon deposit logging.
-- [ ] Calendar grid renders correctly across multiple screen densities without pixel overflow.
+### 🟠 Giai đoạn 3: Lịch Chuỗi Kỷ luật Tích góp (DailyYou-style) & Icon Cảm xúc
+- **Yêu cầu đáp ứng:**
+  - Xây dựng Lịch theo dõi chuỗi kỷ luật tích góp (Saving Streak Calendar kiểu DailyYou).
+  - Tính toán chuỗi ngày kỷ luật (Streak), cho phép chọn icon cảm xúc / ghi chú mỗi lần đóng quỹ.
+- **Chi tiết các tác vụ:**
+  - **Task 3.1: Bộ tính toán chuỗi kỷ luật (Streak Provider):** Tính `currentStreak`, `longestStreak`, kiểm tra tính kỷ luật theo ngày/tuần.
+    - *Files:* `providers/streak_calendar_provider.dart`.
+  - **Task 3.2: Giao diện Lịch Kỷ luật DailyYou:** Lưới lịch tháng hiển thị màu sắc trạng thái các ngày đóng tiền (`CalendarDayCell`) và ngọn lửa kỷ luật rực sáng (`StreakFireBadge`).
+    - *Files:* `presentation/screens/streak_calendar_screen.dart`, `presentation/widgets/calendar_day_cell.dart`, `presentation/widgets/streak_fire_badge.dart`.
+  - **Task 3.3: Hộp thoại Chọn Icon Cảm xúc & Ghi chú Nhật ký:** Cho phép thành viên chọn cảm xúc (😄, 😎, 😤, ☕) và nhập lời nhắn khi hoàn thành kỳ đóng.
+    - *Files:* `presentation/widgets/emotion_selector_dialog.dart`.
 
 ---
 
-### 🔵 Phase 4: Receipt Upload, Host Approval & Fund Progress
-
-#### Task 4.1: Transfer Receipt Upload to Firebase Storage
-- **Description:** Enable members to select or capture a payment confirmation screenshot, compress it, and upload it to Firebase Storage.
-- **Acceptance Criteria:**
-  - Uploads images to `trips/{tripId}/receipts/` and stores the download URL.
-  - Creates a `DepositRecord` with initial status `PENDING`.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/repository/saving_repository_impl.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/momo_deposit_screen.dart`
-- **Scope:** Medium (M)
-
-#### Task 4.2: Host Receipt Review & Verification Screen
-- **Description:** Provide the Fund Host with a list of pending transactions to inspect receipt photos and approve/reject them.
-- **Acceptance Criteria:**
-  - Full-screen photo inspection dialog with zoom support.
-  - Tapping `Approve` transitions status to `APPROVED`, increments group fund balance, and triggers streak updates.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/screens/pending_receipts_screen.dart`
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/providers/receipt_approval_provider.dart`
-- **Scope:** Medium (M)
-
-#### Task 4.3: Realtime Fund Progress Bar & Leaderboard Card
-- **Description:** Display an overarching progress card showing total fund completion percentage and individual contributions.
-- **Acceptance Criteria:**
-  - Animated progress indicator showing percentage toward 100%.
-  - Celebratory visual state when the total fund reaches 100%.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/widgets/fund_progress_card.dart`
-- **Scope:** Small (S)
-
-#### 🎯 Checkpoint 4: End-to-End Workflow Verification
-- [ ] Member submits receipt -> Host receives pending item -> Host approves -> Fund progress increments in realtime.
-- [ ] Memory leaks avoided during repeated photo uploads.
+### 🔵 Giai đoạn 4: Tải Biên lai Lên Storage, Duyệt Giao dịch & Tiến độ Quỹ 100%
+- **Yêu cầu đáp ứng:**
+  - Màn hình tải ảnh chụp biên lai chuyển tiền MoMo lên Cloud Storage.
+  - Cập nhật thanh tiến độ tích lũy quỹ chung của nhóm đạt mốc 100%.
+- **Chi tiết các tác vụ:**
+  - **Task 4.1: Tải ảnh chụp biên lai chuyển tiền:** Tải ảnh biên lai lên Firebase Storage (`trips/{tripId}/receipts/`), lưu bản ghi nộp tiền ở trạng thái `PENDING`.
+    - *Files:* `presentation/screens/momo_deposit_screen.dart`.
+  - **Task 4.2: Màn hình Xem & Duyệt Biên lai (Trưởng quỹ):** Xem ảnh chụp biên lai full-screen, duyệt hoặc từ chối giao dịch.
+    - *Files:* `presentation/screens/pending_receipts_screen.dart`, `providers/receipt_approval_provider.dart`.
+  - **Task 4.3: Thẻ Tiến độ Quỹ nhóm Đạt mốc 100%:** Hiển thị trực quan thanh tiến độ tích lũy, tự động chuyển trạng thái chúc mừng khi hoàn thành 100% mục tiêu.
+    - *Files:* `presentation/widgets/fund_progress_card.dart`.
 
 ---
 
-### 🟣 Phase 5: Routing Integration & Quality Polish
+### 🟣 Giai đoạn 5: Tích hợp Tuyến đường & Kiểm tra Toàn diện
+- **Task 5.1: Định nghĩa Tuyến đường (Routes):** Đóng gói routes cho phân hệ (`/saving-plan`, `/momo-deposit`, `/streak-calendar`, `/momo-config`, `/pending-receipts`).
+  - *Files:* `presentation/routes.dart`.
+- **Task 5.2: Kiểm tra Chất lượng & Phân tích Tĩnh:** Chạy `flutter analyze` bảo đảm 0 lỗi, 0 cảnh báo; định dạng code theo chuẩn Dart.
 
-#### Task 5.1: Encapsulate Module Routing Contract
-- **Description:** Expose standard route builder helpers/definitions for Module 2 to allow clean registration into the host router.
-- **Acceptance Criteria:**
-  - Provides clear route constants: `/saving-plan`, `/momo-deposit`, `/streak-calendar`, `/momo-config`.
-- **Files Touched:**
-  - `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/presentation/routes.dart`
-- **Scope:** Small (S)
+---
 
-#### Task 5.2: Static Analysis & Code Quality Verification
-- **Description:** Run full static analysis and formatting on all created files.
-- **Acceptance Criteria:**
-  - `flutter analyze` reports 0 errors and 0 warnings inside Module 2.
-  - All Dart files formatted according to official conventions (`dart format`).
-- **Scope:** Small (S)
-
-#### 🎯 Final Checkpoint: Ready for Git Review & Commit
-- [ ] All code strictly confined within `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/`.
-- [ ] Commit message follows academic requirements: `feat(nhom08-65ktpm): implement saving discipline and momo group fund`.
+## 3. Tiêu chí Nghiệm thu & Cam kết
+- Toàn bộ mã nguồn nằm gọn trong thư mục được phân công: `lib/features/saving_discipline_and_momo/`.
+- Thực hiện kiểm thử và cập nhật tiến độ đầy đủ vào `PROGRESS.md`.

@@ -15,24 +15,6 @@
 
 ---
 
-## Hướng Dẫn Thiết Lập Môi Trường & Khởi Chạy Ứng Dụng
-
-### 1. Yêu Cầu Môi Trường
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (phiên bản `>= 3.10.0`).
-- [Dart SDK](https://dart.dev/get-dart).
-- Trình soạn thảo / IDE: Android Studio hoặc Visual Studio Code (đã cài đặt tiện ích Flutter & Dart).
-- Thiết bị chạy thử nghiệm: Máy ảo (Android Emulator / iOS Simulator) hoặc thiết bị thật đã kích hoạt Developer Options & USB Debugging.
-
-### 2. Các Bước Khởi Chạy Ứng Dụng
-1. Di chuyển vào thư mục mã nguồn của nhóm:
-   ```bash
-   cd nhom08-65ktpm/src
-   ```
-
-2. Cài đặt các thư viện phụ thuộc:
-   ```bash
-   flutter pub get
-   ```
 
 3. Khởi chạy ứng dụng ở chế độ Debug:
    ```bash

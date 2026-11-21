@@ -13,10 +13,3 @@
 | 3 | Hồ Thế Dũng | 2251243286 | 64ĐTVT3 | Thành viên | Module 3: Đề xuất điểm đến & Hoạch định bản đồ Maps API | | thedung051@gmail.com |
 | 4 | Đỗ Tùng Khánh | 2251243356 | 64ĐTVT3 | Thành viên | Module 4: Hoạch định ngân sách Cashew & Camera OCR chi tiêu | | khanhviphy29@gmail.com |
 
----
-
-
-3. Khởi chạy ứng dụng ở chế độ Debug:
-   ```bash
-   flutter run
-   ```

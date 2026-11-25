@@ -39,10 +39,19 @@
 - [x] Static analysis: `flutter analyze` reports 0 issues (0 errors, 0 warnings).
 - [x] Unit tests: `flutter test test/features/saving_discipline_and_momo/` passes 12/12 tests.
 
-## 🟠 Phase 3: DailyYou-Style Saving Streak Calendar
-- [ ] Task 3.1: Saving Streak Calculation Logic
-- [ ] Task 3.2: DailyYou Streak Calendar UI Widget
-- [ ] Task 3.3: Emotion Tags & Saving Journal Dialog
+## 🟢 Phase 3: DailyYou-Style Saving Streak Calendar
+
+| Task | Description | Status | Verification / Artifacts |
+| :--- | :--- | :---: | :--- |
+| **Task 3.1** | Saving Streak Calculation Logic | **COMPLETED** | Pure streak calculation, calendar grid mapping & Riverpod state: <br>- `utils/saving_streak_calculator.dart`<br>- `providers/saving_streak_provider.dart` |
+| **Task 3.2** | DailyYou Streak Calendar UI Widget | **COMPLETED** | Interactive monthly calendar with month navigation, legend & live streak badge: <br>- `presentation/widgets/daily_you_streak_calendar.dart`<br>- `presentation/momo_fund_screen.dart` |
+| **Task 3.3** | Emotion Tags & Saving Journal Dialog | **COMPLETED** | DailyYou emotion chip picker & saving reflection dialog: <br>- `presentation/widgets/saving_journal_dialog.dart` |
+
+### 🎯 Checkpoint 3 Status: Passed ✅
+- [x] `SavingStreakCalculator` computes current/longest streaks, idempotent check-ins, and monthly status cells.
+- [x] `SavingStreakNotifier` & `savingJournalProvider` persist check-ins and emotion journal notes.
+- [x] `DailyYouStreakCalendar` & `SavingJournalDialog` wired into `MomoFundScreen`.
+- [x] Static analysis & unit tests verified (`saving_streak_calculator_test.dart`).
 
 ## 🔵 Phase 4: Receipt Upload, Host Approval & Fund Progress
 - [ ] Task 4.1: Transfer Receipt Upload to Firebase Storage

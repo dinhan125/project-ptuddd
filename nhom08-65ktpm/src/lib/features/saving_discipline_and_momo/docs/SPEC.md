@@ -1,155 +1,134 @@
-# 📋 Technical Specification (SPEC.md)
-## Module 2: Saving Discipline & MoMo Group Fund (`saving_discipline_and_momo`)
-### Project: Travel Buddy - Trip Planning, Preparation Checklist & Fund Saving Discipline
-**Engineer:** Nguyen Xuan Binh (Student ID: 2251172252 - Class: 64KTPM5 - Member #2)  
-**Course:** Mobile Application Development (PTUDDD) - Thuyloi University (TLU)  
-**Git Branch:** `nhom08-65ktpm`  
-**Execution Boundary:** Strictly limited to `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/`
+# 📋 Tài liệu Đặc tả Kỹ thuật (SPEC.md)
+## Phân hệ 2: Kỷ luật Tích góp & Quỹ nhóm MoMo (`saving_discipline_and_momo`)
+### Đề tài: Travel Buddy - Ứng dụng lập kế hoạch chuyến đi, checklist chuẩn bị & tích góp quỹ nhóm
+**Kỹ sư phụ trách:** Nguyễn Xuân Bình (MSV: 2251172252 - Lớp: 64KTPM5 - Thành viên số 2)  
+**Môn học:** Phát triển ứng dụng trên thiết bị di động (PTUDDD) - Trường Đại học Thủy lợi (TLU)  
+**Nhánh Git:** `nhom08-65ktpm` / `feat/saving-models-calculator`  
+**Phạm vi file:** Giới hạn tuyệt đối trong `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/` và `docs/`
 
 ---
 
-## ⚠️ Surfaced Assumptions (Upfront Assumptions)
-1. **MoMo Fund Integration:** Integrates with MoMo Group Fund via standard MoMo Deeplinks (`momo://...` or official web redirect) and QR scanning (`mobile_scanner`). It does not invoke private core banking APIs, which matches the project scope.
-2. **Transaction Verification:** The verification mechanism relies on transfer receipts (screenshots uploaded by trip members to Firebase Storage). The Fund Host manually approves transactions in Cloud Firestore to increment the fund progress toward 100%.
-3. **Database Schema:** Fund configuration, member saving schedules, deposit histories, and streaks are stored in Cloud Firestore under sub-collections of each `tripId`.
-4. **Third-Party Package Additions:** The module requires `url_launcher` (to trigger the native MoMo app deeplink) and `image_picker` (to select receipt screenshots from the device camera/gallery).
+## 🎯 Tổng quan các yêu cầu cốt lõi (Core Requirements)
+
+1. **Thuật toán chia nhỏ kinh phí (Saving Calculator):** Tự động chia nhỏ tổng kinh phí chuyến đi thành các kỳ đóng quỹ định kỳ (ngày/tuần/tháng) dựa trên thời gian đếm ngược đến ngày khởi hành; làm tròn đến 1.000 VNĐ và dồn phần dư vào kỳ cuối.
+2. **Quét mã QR Quỹ nhóm MoMo (`mobile_scanner`):** Tích hợp camera quét mã QR thanh toán hoặc mã QR Quỹ nhóm MoMo, có nút bật/tắt đèn flash và chuyển đổi camera trước/sau.
+3. **Deeplink nộp quỹ 1 chạm (`url_launcher`):** Nút mở trực tiếp ứng dụng MoMo (`momo://`) kèm số điện thoại, số tiền và nội dung chuyển khoản tự động. Có phương án fallback sao chép nhanh 1 chạm khi máy chưa cài MoMo.
+4. **Lịch chuỗi kỷ luật tích góp (Saving Streak Calendar kiểu DailyYou):** Hiển thị trực quan dạng lưới lịch tháng, đánh dấu ngày đóng quỹ đúng hạn với ngọn lửa streak 🔥 và huy hiệu hoàn thành.
+5. **Tính toán chuỗi kỷ luật (Streak) & Nhật ký cảm xúc:** Tự động đếm chuỗi ngày tích góp liên tục (Current Streak, Longest Streak), cho phép chọn icon cảm xúc (😄 Hào hứng, 😎 Tự tin, 😤 Quyết tâm, ☕ Bỏ ly cà phê) và ghi chú nhật ký cá nhân mỗi lần đóng tiền.
+6. **Tải ảnh biên lai lên Cloud Storage:** Cho phép thành viên chụp hoặc chọn ảnh chụp màn hình chuyển khoản MoMo từ máy, tải lên Firebase Storage (`trips/{tripId}/receipts/`) để tạo giao dịch ở trạng thái chờ duyệt (`PENDING`).
+7. **Duyệt biên lai & Thanh tiến độ quỹ chung đạt mốc 100%:** Trưởng quỹ (Host) kiểm tra ảnh biên lai (zoom chi tiết) và bấm Duyệt/Từ chối. Khi duyệt, hệ thống dùng Firestore Transaction cập nhật số tiền đã thu và thanh tiến độ hoàn thành quỹ nhóm tiến tới mốc 100% với hiệu ứng chúc mừng.
 
 ---
 
-## 1. Objective & User Stories
-
-### 1.1. Problem Statement
-Group travel plans among students frequently fail due to **financial indiscipline**: members postpone saving, forget payment deadlines, or lack transparency in fund collection. **Module 2: Saving Discipline & MoMo Group Fund** solves this problem by automating periodic saving schedules based on a trip countdown, gamifying financial discipline through a DailyYou-style Streak Calendar, streamlining payments via MoMo Group Fund (QR & 1-tap Deeplink), and maintaining real-time fund transparency.
-
-### 1.2. Target Personas
-- **Fund Host (Trip Planner / Host):** Configures the MoMo Group Fund details (phone number, fund link, QR code) and reviews/approves transaction receipts submitted by members.
-- **Trip Member:** Views their personal installment schedule, receives payment reminders, makes 1-tap deposits to MoMo, maintains saving streaks, and uploads transaction receipts for verification.
-
-### 1.3. User Stories & Acceptance Criteria (AC)
-
-#### US1: Automated Saving Plan Generator
-- **As a** trip member,
-- **I want** the system to automatically calculate my periodic saving installments (daily, weekly, or monthly) based on my budget share and the departure countdown,
-- **So that** I know exactly how much to save and can maintain financial discipline.
-- **Acceptance Criteria (AC):**
-  - Allows selecting installment frequency: *Daily*, *Weekly*, or *Monthly*.
-  - Formula: `Installment Amount = Total Member Budget / Number of Intervals until Departure`.
-  - Rounds amounts to sensible increments (e.g., nearest 1,000 VND), with any fractional remainder adjusted in the final installment.
-  - Generates clear due dates for each installment.
-
-#### US2: MoMo Group Fund Integration & QR Scanner
-- **As a** trip member,
-- **I want** to scan the group fund's MoMo QR code or tap a button to open the MoMo app directly,
-- **So that** I can transfer money quickly without typing phone numbers or transfer remarks manually.
-- **Acceptance Criteria (AC):**
-  - Scans QR codes using the device camera via `mobile_scanner`.
-  - Displays the group fund's QR code (rendered via `qr_flutter`) along with fund title, host name, and phone number.
-  - "Open MoMo" button initiates the `momo://` scheme via `url_launcher`.
-  - Fallback: If MoMo is not installed or fails to launch, displays a polite fallback dialog with 1-tap "Copy Phone Number" and "Copy Transfer Note" buttons.
-
-#### US3: Saving Streak Calendar (DailyYou-style)
-- **As a** trip member,
-- **I want** to track my on-time deposit streak on a visual calendar,
-- **So that** I stay motivated to save regularly before the trip starts.
-- **Acceptance Criteria (AC):**
-  - Monthly calendar view marking successful deposit days with visual badges (green checkmarks or streak flame icons 🔥).
-  - Displays metrics: *Current Streak*, *Longest Streak*, and *Total Completed Installments*.
-  - Allows members to attach an Emotion Tag (😄 Excited, 😎 Confident, 😤 Determined, ☕ Sacrificed coffee) and a brief personal note to each deposit.
-
-#### US4: Receipt Upload & Fund Progress Bar
-- **As a** trip member,
-- **I want** to upload my transfer receipt screenshot,
-- **So that** the Host can verify my contribution.
-- **As a** Fund Host,
-- **I want** to inspect pending transaction receipts and approve/reject them,
-- **So that** the group fund balance and progress bar update reliably.
-- **Acceptance Criteria (AC):**
-  - Member uploads screenshot -> image uploaded to Firebase Storage (`trips/{tripId}/receipts/...`).
-  - Creates a transaction document in Firestore with status `PENDING`.
-  - Host views thumbnail, inspects full image in zoom dialog, and taps `Approve` or `Reject`.
-  - On approval: updates status to `APPROVED`, increments group fund collected amount, updates member's paid total, and extends their streak.
-  - Fund progress bar visually reflects `currentAmount / targetAmount * 100%` in real time.
+## ⚠️ Giả định ban đầu (Assumptions)
+1. **Tích hợp Quỹ MoMo:** Ứng dụng tích hợp qua Deeplink chuẩn của MoMo (`momo://...`) và mã QR nhóm bằng `mobile_scanner`, không gọi API core banking nội bộ nhằm đảm bảo an toàn và phù hợp phạm vi đồ án.
+2. **Cơ chế xác thực giao dịch:** Dựa trên ảnh biên lai chuyển tiền tải lên Firebase Storage. Trưởng nhóm duyệt giao dịch trên Firestore để kích hoạt cộng tiền vào quỹ và nối dài chuỗi streak của thành viên.
+3. **Môi trường lưu trữ:** Dữ liệu quỹ, kế hoạch thành viên, lịch sử nộp và streak được lưu trữ trong Cloud Firestore theo cấu trúc sub-collection của `tripId`.
 
 ---
 
-## 2. Tech Stack & Dependencies
+## 1. Chi tiết User Stories & Tiêu chí nghiệm thu (Acceptance Criteria)
 
-| Layer / Role | Library / Technology | Version | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Framework** | Flutter / Dart | `>= 3.10.0` / `>= 3.0.0` | Cross-platform mobile development |
-| **State Management** | `flutter_riverpod` | `^3.5.0` | Compile-safe reactive state (Notifier / AsyncNotifier) |
-| **Routing** | `go_router` | `^18.1.4` | Declarative routing & parameter passing |
-| **Database** | `cloud_firestore` | `^7.1.0` | Realtime NoSQL persistence for funds, plans, and streaks |
-| **Storage** | `firebase_storage` | `^14.0.1` | Cloud image storage for transfer receipt screenshots |
-| **QR Code Display** | `qr_flutter` | `^4.1.0` | Dynamic QR code generation for group funds |
-| **QR Code Scanner** | `mobile_scanner` | `^7.5.0` | Live camera QR code barcode scanning |
-| **URL & Deeplink** | `url_launcher` | `^6.3.0` *(To add)* | Launches MoMo app scheme (`momo://`) or web URLs |
-| **Image Selection** | `image_picker` | `^1.1.2` *(To add)* | Captures or selects receipt images from device |
-| **Code Generation** | `freezed` & `json_serializable` | `^3.2.5` / `^6.15.2` | Immutable data structures with JSON serialization |
+### US1: Thuật toán chia nhỏ tổng kinh phí thành các kỳ đóng định kỳ
+- **Là:** Thành viên chuyến đi,
+- **Tôi muốn:** Hệ thống tự động tính toán số tiền cần đóng theo từng kỳ (hàng ngày, hàng tuần, hàng tháng) dựa trên hạn mức chi tiêu cá nhân và số ngày đếm ngược đến ngày đi,
+- **Để:** Tôi chủ động chuẩn bị tài chính và duy trì kỷ luật tích lũy.
+- **Tiêu chuẩn nghiệm thu (AC):**
+  - Hỗ trợ các chu kỳ: **Hàng ngày (Daily)**, **Hàng tuần (Weekly)**, **Hàng tháng (Monthly)**.
+  - Công thức: `Số tiền mỗi kỳ = Tổng kinh phí / Số kỳ hạn cho tới ngày khởi hành`.
+  - Tự động fallback: Nếu thời gian còn lại < 7 ngày, bắt buộc chọn chu kỳ ngày. Nếu < 30 ngày, chu kỳ tháng chuyển thành tuần.
+  - Làm tròn tiền đến 1.000 VNĐ gần nhất (`(raw / 1000).round() * 1000`), toàn bộ sai số phần dư làm tròn được bù vào kỳ đóng cuối cùng để tổng chính xác 100%.
+
+### US2: Quét mã QR Quỹ MoMo & Deeplink nộp quỹ 1 chạm
+- **Là:** Thành viên chuyến đi,
+- **Tôi muốn:** Quét mã QR MoMo của nhóm hoặc bấm nút để mở thẳng app MoMo,
+- **Để:** Thanh toán tiền quỹ nhanh chóng mà không cần nhập tay số điện thoại hoặc nội dung chuyển khoản.
+- **Tiêu chuẩn nghiệm thu (AC):**
+  - Quét mã QR trực tiếp qua camera bằng thư viện `mobile_scanner`, tự động xin quyền camera qua `permission_handler`.
+  - Hiển thị mã QR quỹ nhóm (tạo qua `qr_flutter`) kèm tên quỹ, tên thủ quỹ và số điện thoại.
+  - Nút "Mở MoMo nộp quỹ" kích hoạt URL scheme `momo://` thông qua `url_launcher`.
+  - Fallback: Nếu mở không thành công (chưa cài app MoMo), hiển thị popup hỗ trợ nút 1-tap "Sao chép số điện thoại" và "Sao chép nội dung chuyển khoản".
+
+### US3: Lịch theo dõi chuỗi kỷ luật tích góp (DailyYou-style) & Icon cảm xúc
+- **Là:** Thành viên chuyến đi,
+- **Tôi muốn:** Theo dõi chuỗi ngày đóng tiền đúng hạn trên giao diện lịch trực quan và gắn thẻ cảm xúc,
+- **Để:** Có động lực duy trì kỷ luật tài chính trước chuyến đi.
+- **Tiêu chuẩn nghiệm thu (AC):**
+  - Lưới lịch hiển thị theo tháng, ô ngày (`CalendarDayCell`) có màu sắc trực quan: Đã nộp (Xanh lá), Đến hạn hôm nay (Vàng hổ phách), Quá hạn (Xám/Đỏ).
+  - Huy hiệu ngọn lửa (`StreakFireBadge`) hiển thị chuỗi hiện tại (`currentStreak`) và chuỗi kỷ lục (`longestStreak`).
+  - Hộp thoại chọn cảm xúc (`emotionTag`) với các lựa chọn: 😄 Hào hứng, 😎 Tự tin, 😤 Quyết tâm, ☕ Nhịn một ly cà phê, kèm ô nhập ghi chú ngắn.
+
+### US4: Tải ảnh biên lai & Thanh tiến độ quỹ chung đạt mốc 100%
+- **Là:** Thành viên chuyến đi và Trưởng quỹ (Host),
+- **Tôi muốn:** Thành viên upload ảnh chụp màn hình biên lai chuyển tiền lên Cloud Storage, và Trưởng quỹ có thể duyệt/từ chối biên lai,
+- **Để:** Minh bạch tài chính và thanh tiến độ tích lũy quỹ nhóm đạt mốc 100%.
+- **Tiêu chuẩn nghiệm thu (AC):**
+  - Thành viên chọn ảnh biên lai -> Tải lên Firebase Storage tại đường dẫn `trips/{tripId}/receipts/`.
+  - Tạo bản ghi `DepositRecord` với trạng thái `PENDING`.
+  - Trưởng quỹ xem danh sách chờ duyệt, mở ảnh xem phóng to/thu nhỏ, chọn "Duyệt" (`APPROVED`) hoặc "Từ chối" (`REJECTED`).
+  - Khi duyệt thành công: Dùng Firestore Transaction cộng tiền vào `currentCollectedAmount` của quỹ nhóm, tăng `paidAmount` của thành viên, nối dài `currentStreak`.
+  - Thanh tiến độ quỹ nhóm (`FundProgressCard`) hiển thị tỷ lệ `%` tăng dần, hiển thị trạng thái hoàn thành nổi bật khi đạt 100%.
 
 ---
 
-## 3. Development & Verification Commands
+## 2. Công nghệ & Thư viện sử dụng
 
-All development commands are executed from the Flutter root:
-```bash
-# 1. Navigate to the source root
-cd nhom08-65ktpm/src
-
-# 2. Install dependencies
-flutter pub get
-
-# 3. Generate Freezed / JSON models
-dart run build_runner build --delete-conflicting-outputs
-
-# 4. Run static analysis (linter)
-flutter analyze
-
-# 5. Run unit & widget tests for Module 2
-flutter test test/features/saving_discipline_and_momo/
-
-# 6. Run application in debug mode
-flutter run
-```
+| Công nghệ / Gói | Phiên bản | Mục đích sử dụng |
+| :--- | :--- | :--- |
+| **Flutter / Dart** | SDK ^3.12.2 | Nền tảng xây dựng giao diện đa nền tảng |
+| **flutter_riverpod** | ^3.5.0 | Quản lý trạng thái an toàn kiểu dữ liệu (AsyncNotifier / Notifier) |
+| **cloud_firestore** | ^7.1.0 | Cơ sở dữ liệu thời gian thực lưu trữ quỹ, kế hoạch và streak |
+| **firebase_storage** | ^14.0.1 | Lưu trữ ảnh chụp biên lai chuyển tiền MoMo |
+| **mobile_scanner** | ^7.5.0 | Quét mã QR quỹ nhóm trực tiếp bằng camera |
+| **qr_flutter** | ^4.1.0 | Tạo mã QR trực quan cho quỹ nhóm MoMo |
+| **url_launcher** | ^6.3.0 | Mở deeplink ứng dụng MoMo (`momo://`) |
+| **permission_handler** | ^13.0.2 | Kiểm tra và xin quyền sử dụng Camera an toàn |
 
 ---
 
-## 4. Module Directory Structure
+## 3. Cấu trúc Thư mục Module (`saving_discipline_and_momo`)
 
-All source files for Module 2 are strictly encapsulated within:
 ```text
 nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/
+├── docs/                              # Tài liệu đặc tả kỹ thuật & kế hoạch
+│   ├── SPEC.md
+│   └── PLAN.md
+├── models/                            # Data Models & Entities
+│   ├── momo_fund_config.dart          # Cấu hình quỹ MoMo
+│   ├── saving_plan.dart               # Kế hoạch tích góp từng thành viên
+│   ├── deposit_record.dart            # Bản ghi nộp quỹ & biên lai
+│   └── member_streak.dart             # Dữ liệu chuỗi ngày kỷ luật
 ├── presentation/                      # UI Presentation Layer
 │   ├── screens/
-│   │   ├── momo_fund_config_screen.dart       # Host setup for MoMo fund
-│   │   ├── momo_deposit_screen.dart           # Member deposit & QR display screen
-│   │   ├── qr_scanner_screen.dart             # Live Camera QR scanner screen
-│   │   ├── saving_plan_screen.dart            # Plan generator & installment overview
-│   │   ├── streak_calendar_screen.dart        # DailyYou-style saving streak calendar
-│   │   └── pending_receipts_screen.dart       # Host review & approval screen
+│   │   ├── momo_fund_config_screen.dart       # Màn hình cài đặt quỹ MoMo (Trưởng quỹ)
+│   │   ├── momo_deposit_screen.dart           # Màn hình nộp quỹ & mở MoMo 1 chạm
+│   │   ├── qr_scanner_screen.dart             # Màn hình quét mã QR bằng camera
+│   │   ├── saving_plan_screen.dart            # Màn hình tạo kế hoạch & xem kỳ đóng
+│   │   ├── streak_calendar_screen.dart        # Màn hình lịch streak DailyYou
+│   │   └── pending_receipts_screen.dart       # Màn hình duyệt biên lai (Trưởng quỹ)
 │   └── widgets/
-│       ├── streak_fire_badge.dart             # Animated flame badge widget
-│       ├── calendar_day_cell.dart             # Custom day cell reflecting deposit status
-│       ├── fund_progress_card.dart            # Material 3 fund progress overview card
-│       └── emotion_selector_dialog.dart       # Mood & note dialog on saving
-├── providers/                         # Riverpod State Management Layer
-│   ├── momo_fund_provider.dart                # Fund configuration AsyncNotifier
-│   ├── saving_plan_provider.dart              # Installment generator & member plan state
-│   ├── streak_calendar_provider.dart          # Streak calculation & calendar history state
-│   └── receipt_approval_provider.dart         # Receipt submission & approval state
-├── repository/                        # Data Access Layer
-│   ├── saving_repository.dart                 # Abstract repository interface
-│   └── saving_repository_impl.dart            # Firestore & Firebase Storage implementation
-└── utils/                             # Domain Helpers & Pure Utilities
-    ├── momo_deeplink_helper.dart              # MoMo schema builder & launcher logic
-    └── saving_calculator.dart                 # Pure calculation logic for installments
+│       ├── streak_fire_badge.dart             # Widget huy hiệu lửa streak
+│       ├── calendar_day_cell.dart             # Ô lịch hiển thị trạng thái đóng tiền
+│       ├── fund_progress_card.dart            # Thẻ tiến độ quỹ nhóm đạt mốc 100%
+│       └── emotion_selector_dialog.dart       # Hộp thoại chọn icon cảm xúc & ghi chú
+├── providers/                         # Riverpod Notifiers Layer
+│   ├── momo_fund_provider.dart
+│   ├── saving_plan_provider.dart
+│   ├── streak_calendar_provider.dart
+│   └── receipt_approval_provider.dart
+├── repository/                        # Data Layer (Firestore & Storage)
+│   ├── saving_repository.dart
+│   └── saving_repository_impl.dart
+└── utils/                             # Domain Utilities
+    ├── momo_deeplink_helper.dart      # Bộ hỗ trợ mở URL scheme MoMo & fallback
+    └── saving_calculator.dart         # Thuật toán chia nhỏ kinh phí & làm tròn
 ```
 
 ---
 
-## 5. Data Models & Firestore Schema
+## 4. Cấu trúc Dữ liệu Firestore
 
-### 5.1. Collection: `trips/{tripId}/momo_fund_config`
+### 4.1. `trips/{tripId}/momo_fund_config/default`
 ```typescript
 interface MoMoFundConfig {
   tripId: string;
@@ -166,7 +145,7 @@ interface MoMoFundConfig {
 }
 ```
 
-### 5.2. Collection: `trips/{tripId}/saving_plans/{memberId}`
+### 4.2. `trips/{tripId}/saving_plans/{memberId}`
 ```typescript
 interface SavingPlan {
   id: string;
@@ -185,7 +164,7 @@ interface SavingPlan {
 }
 ```
 
-### 5.3. Collection: `trips/{tripId}/deposit_records`
+### 4.3. `trips/{tripId}/deposit_records/{recordId}`
 ```typescript
 interface DepositRecord {
   id: string;
@@ -204,7 +183,7 @@ interface DepositRecord {
 }
 ```
 
-### 5.4. Collection: `trips/{tripId}/member_streaks/{memberId}`
+### 4.4. `trips/{tripId}/member_streaks/{memberId}`
 ```typescript
 interface MemberStreak {
   memberId: string;
@@ -212,103 +191,19 @@ interface MemberStreak {
   currentStreak: number;
   longestStreak: number;
   lastDepositDate?: Timestamp;
-  depositDates: string[]; // List of ISO date strings: ['2026-11-20', ...]
+  depositDates: string[]; // ['2026-11-20', '2026-11-21', ...]
   totalDisciplinedDays: number;
 }
 ```
 
 ---
 
-## 6. Code Style & Riverpod Conventions
-
-The module strictly implements clean separation of concerns using Riverpod `AsyncNotifier`:
-
-```dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-class StreakState {
-  final int currentStreak;
-  final int longestStreak;
-  final Set<String> activeDates;
-
-  const StreakState({
-    this.currentStreak = 0,
-    this.longestStreak = 0,
-    this.activeDates = const {},
-  });
-
-  StreakState copyWith({
-    int? currentStreak,
-    int? longestStreak,
-    Set<String>? activeDates,
-  }) {
-    return StreakState(
-      currentStreak: currentStreak ?? this.currentStreak,
-      longestStreak: longestStreak ?? this.longestStreak,
-      activeDates: activeDates ?? this.activeDates,
-    );
-  }
-}
-
-class StreakNotifier extends AutoDisposeFamilyAsyncNotifier<StreakState, String> {
-  @override
-  Future<StreakState> build(String tripId) async {
-    final repo = ref.watch(savingRepositoryProvider);
-    final streak = await repo.getMemberStreak(tripId);
-    return StreakState(
-      currentStreak: streak.currentStreak,
-      longestStreak: streak.longestStreak,
-      activeDates: streak.depositDates.toSet(),
-    );
-  }
-
-  Future<void> recordDeposit({
-    required double amount,
-    required String emotion,
-    String? note,
-  }) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(savingRepositoryProvider);
-      await repo.submitDeposit(
-        tripId: arg,
-        amount: amount,
-        emotion: emotion,
-        note: note,
-      );
-      final updated = await repo.getMemberStreak(arg);
-      return StreakState(
-        currentStreak: updated.currentStreak,
-        longestStreak: updated.longestStreak,
-        activeDates: updated.depositDates.toSet(),
-      );
-    });
-  }
-}
-```
-
----
-
-## 7. Engineering Boundaries
-
-- **ALWAYS:**
-  - Validate monetary inputs (`amount > 0`).
-  - Wrap asynchronous calls with `AsyncValue.guard()` or proper `try/catch` error states.
-  - Request camera permissions using `permission_handler` prior to launching the QR scanner.
-  - Confine all file modifications strictly to `nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/`.
-- **ASK FIRST:**
-  - Before modifying root dependencies in `pubspec.yaml` (e.g., adding `url_launcher` or `image_picker`).
-  - Before modifying Firestore security rules affecting multi-module permissions.
-- **NEVER:**
-  - Never edit files outside `nhom08-65ktpm/` (e.g., root `.gitignore` or root `README.md`).
-  - Never hardcode private API keys, secrets, or production credentials in Dart code.
-  - Never use force unwrap operators (`!`) without prior null verification.
-
----
-
-## 8. Definition of Done (DoD)
-1. Clean static analysis: `flutter analyze` reports 0 errors and 0 warnings for the module.
-2. Saving plan generator accurately partitions installment amounts across Daily, Weekly, and Monthly frequencies.
-3. QR Scanner reads MoMo fund strings reliably and handles deeplink invocation with graceful fallbacks.
-4. DailyYou Streak Calendar renders on-time milestones and updates reactively on deposit approval.
-5. End-to-end receipt upload, Host approval, and real-time fund progress bar function smoothly.
+## 5. Tiêu chuẩn Hoàn thành (Definition of Done)
+1. Thuật toán `SavingCalculator` chia chính xác số tiền theo ngày/tuần, có kiểm thử đơn vị đạt 100% boundary test.
+2. Quét mã QR MoMo bằng `mobile_scanner` ổn định, xin quyền máy ảnh rõ ràng.
+3. Nút deeplink mở được ứng dụng MoMo và có phương án fallback sao chép thông tin tiện lợi.
+4. Lịch kỷ luật DailyYou hiển thị trực quan các ngày đóng tiền kèm ngọn lửa streak.
+5. Cho phép chọn icon cảm xúc, viết nhật ký đóng quỹ.
+6. Tải ảnh chụp biên lai lên Firebase Storage thành công, trưởng quỹ duyệt giao dịch bằng Firestore Transaction.
+7. Thanh tiến độ quỹ hiển thị mượt mà và chuyển trạng thái chúc mừng khi quỹ đạt 100%.
+8. Phân tích tĩnh (`flutter analyze`) đạt 0 lỗi và 0 cảnh báo.

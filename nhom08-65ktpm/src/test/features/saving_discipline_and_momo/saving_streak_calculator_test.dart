@@ -492,8 +492,8 @@ void main() {
         today: DateTime(2026, 11, 27),
       );
       expect(summaryToday.lateTerms, 0);
-      expect(summaryToday.onTimeTerms, 1);
-      expect(summaryToday.currentStreak, 1);
+      expect(summaryToday.onTimeTerms, 5);
+      expect(summaryToday.currentStreak, 5);
       expect(summaryToday.isOnStreak, isTrue);
     });
 
@@ -602,8 +602,52 @@ void main() {
         deposits: [weeklyDeposit],
         today: DateTime(2026, 11, 27),
       );
-      expect(summary.onTimeTerms, 1);
-      expect(summary.currentStreak, 1);
+      expect(summary.onTimeTerms, 7);
+      expect(summary.currentStreak, 7);
+      expect(summary.isOnStreak, isTrue);
+    });
+
+    test('switching from 5 consecutive weekly deposits to daily preserves full 35-day streak', () {
+      final start = DateTime(2026, 10, 23);
+      final today = DateTime(2026, 11, 27); // start + 35 days
+      final weeklyDeposits = List.generate(5, (i) {
+        final idx = i + 1;
+        return DepositRecord(
+          id: 'w_$idx',
+          tripId: 't1',
+          memberId: 'm1',
+          memberName: 'An',
+          amount: 212000,
+          installmentIndex: idx,
+          depositDate: start.add(Duration(days: idx * 7 - 1)),
+          termDueDate: start.add(Duration(days: idx * 7)),
+          termFrequency: SavingFrequency.weekly,
+          status: DepositStatus.approved,
+        );
+      });
+
+      final dailyPlanToday = SavingPlan(
+        id: 'p_daily_after_5_weeks',
+        tripId: 't1',
+        memberId: 'm1',
+        memberName: 'An',
+        targetAmount: 1500000,
+        frequency: SavingFrequency.daily,
+        installmentAmount: 50000,
+        totalInstallments: 30,
+        startDate: today,
+        deadlineDate: today.add(const Duration(days: 30)),
+      );
+
+      final summary = SavingStreakCalculator.calculateTermStreak(
+        plan: dailyPlanToday,
+        deposits: weeklyDeposits,
+        today: today,
+      );
+      expect(summary.currentStreak, 35);
+      expect(summary.longestStreak, 35);
+      expect(summary.onTimeTerms, 35);
+      expect(summary.lateTerms, 0);
       expect(summary.isOnStreak, isTrue);
     });
   });

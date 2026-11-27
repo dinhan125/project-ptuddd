@@ -292,10 +292,16 @@ class SavingStreakCalculator {
       streak: streak,
     );
 
-    var onTimeTerms = 0;
+    final priorCarry = _priorCarryStreak(
+      plan: plan,
+      deposits: deposits,
+      streak: streak,
+      todayDay: todayDay,
+    );
+    var onTimeTerms = priorCarry;
     var lateTerms = 0;
-    var run = 0;
-    var longest = 0;
+    var run = priorCarry;
+    var longest = priorCarry;
 
     for (var i = 0; i < schedule.length; i++) {
       if (i > 0) {
@@ -908,6 +914,70 @@ class SavingStreakCalculator {
       }
     }
     return result;
+  }
+
+  static int _priorCarryStreak({
+    required SavingPlan plan,
+    required List<DepositRecord> deposits,
+    MemberStreak? streak,
+    required DateTime todayDay,
+  }) {
+    final planStart = _toLocalDay(plan.startDate);
+    final yesterday = planStart.subtract(const Duration(days: 1));
+    final upperBound = yesterday.isAfter(todayDay) ? todayDay : yesterday;
+
+    final coveredDays = <String>{};
+    final lateDays = <String>{};
+    final blockedDates = deposits
+        .where((d) => d.status != DepositStatus.approved)
+        .map((d) => formatIsoDate(_toLocalDay(d.depositDate)))
+        .toSet();
+
+    for (final d in deposits) {
+      if (d.status != DepositStatus.approved) continue;
+      final depDay = _toLocalDay(d.depositDate);
+      if (d.termDueDate != null) {
+        final dueDay = _toLocalDay(d.termDueDate!);
+        if (depDay.isAfter(dueDay)) {
+          lateDays.add(formatIsoDate(depDay));
+          continue;
+        }
+        final freq = d.termFrequency ?? plan.frequency;
+        final spanDays = _termSpanDays(freq);
+        final termStart = dueDay.subtract(Duration(days: spanDays - 1));
+        final endDay = dueDay.isAfter(upperBound) ? upperBound : dueDay;
+        for (var day = termStart;
+            !day.isAfter(endDay);
+            day = day.add(const Duration(days: 1))) {
+          coveredDays.add(formatIsoDate(day));
+        }
+      } else if (depDay.isBefore(planStart) && !depDay.isAfter(upperBound)) {
+        coveredDays.add(formatIsoDate(depDay));
+      }
+    }
+
+    if (streak != null) {
+      for (final rawIso in streak.depositDates) {
+        if (blockedDates.contains(rawIso) || lateDays.contains(rawIso)) continue;
+        final day = parseIsoDate(rawIso);
+        if (day == null || !day.isBefore(planStart) || day.isAfter(upperBound)) {
+          continue;
+        }
+        coveredDays.add(formatIsoDate(day));
+      }
+    }
+
+    if (coveredDays.isEmpty) return 0;
+
+    var consecutiveDays = 0;
+    var cursor = upperBound;
+    while (coveredDays.contains(formatIsoDate(cursor))) {
+      consecutiveDays += 1;
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (consecutiveDays >= 3650) break;
+    }
+
+    return consecutiveDays ~/ _termSpanDays(plan.frequency);
   }
 
   static int _termSpanDays(SavingFrequency frequency) => switch (frequency) {

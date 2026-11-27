@@ -14,14 +14,20 @@ import '../providers/momo_fund_provider.dart';
 import 'deposit_receipt_sheet.dart';
 import 'screens/momo_payment_screen.dart';
 import 'setup_momo_sheet.dart';
+import 'widgets/daily_you_streak_calendar.dart';
 
 /// Tab 2 — Quỹ MoMo (Module 2 — Trọng tâm Liên kết Quỹ trong app với Quỹ nhóm MoMo).
 /// Gồm: Thẻ liên kết MoMo, Tiến độ Gây dựng Quỹ, Kỳ đóng quỹ hiện tại,
 /// Lịch chuỗi kỷ luật Saving Streak kiểu DailyYou, Hàng đợi duyệt biên lai & Tiến độ 4 thành viên.
 class MomoFundScreen extends ConsumerStatefulWidget {
-  const MomoFundScreen({super.key, this.tripId = 'trip_demo_01'});
+  const MomoFundScreen({
+    super.key,
+    this.tripId = 'trip_demo_01',
+    this.memberId = 'member_demo_01',
+  });
 
   final String tripId;
+  final String memberId;
 
   @override
   ConsumerState<MomoFundScreen> createState() => _MomoFundScreenState();
@@ -305,71 +311,9 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
           const SizedBox(height: 24),
 
           // 4. Lịch Chuỗi Kỷ luật Tích góp (Saving Streak Calendar — kế thừa DailyYou)
-          const AppSectionHeader(
-            title: 'Lịch chuỗi kỷ luật (Saving Streak)',
-            trailing: AppStatusBadge(
-              label: 'Chuỗi 6 tuần 🔥',
-              tone: AppBadgeTone.mint,
-            ),
-          ),
-          AppInsetCard(
-            borderRadius: 16,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 10,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.05,
-                  ),
-                  itemBuilder: (context, index) {
-                    final week = index + 1;
-                    // Tuần 1-5: Đúng hạn | Tuần 6: Chờ duyệt | Tuần 7-10: Sắp tới
-                    final (bg, fg, emoji) = week <= 5
-                        ? (AppColors.mintContainer, AppColors.onMintContainer, '✓')
-                        : week == 6
-                            ? (AppColors.amberContainer, AppColors.onAmberContainer, '⏳')
-                            : (AppColors.surfaceContainerLow, AppColors.onSurfaceVariant, '');
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: bg,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: week == 6 ? AppColors.amber : AppColors.outlineVariantSoft,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'K$week',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
-                          ),
-                          if (emoji.isNotEmpty)
-                            Text(emoji, style: TextStyle(fontSize: 13, color: fg)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _LegendDot(color: AppColors.mint, label: 'Đúng hạn'),
-                    _LegendDot(color: AppColors.amber, label: 'Chờ duyệt'),
-                    _LegendDot(color: AppColors.error, label: 'Trễ hạn'),
-                    _LegendDot(color: AppColors.outlineVariant, label: 'Sắp tới'),
-                  ],
-                ),
-              ],
-            ),
+          DailyYouStreakCalendar(
+            tripId: widget.tripId,
+            memberId: widget.memberId,
           ),
           const SizedBox(height: 24),
 
@@ -427,29 +371,6 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant)),
-      ],
     );
   }
 }

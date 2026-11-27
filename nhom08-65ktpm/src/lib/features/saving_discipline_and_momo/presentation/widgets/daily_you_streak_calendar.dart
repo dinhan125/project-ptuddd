@@ -346,23 +346,36 @@ class _DailyYouStreakCalendarState
                       ),
                   };
 
-                  final canTap = !cell.date.isAfter(
-                    DateTime(today.year, today.month, today.day),
-                  );
+                  final isPending = cell.status == StreakDayStatus.pending;
+                  final canTap = !isPending &&
+                      !cell.date.isAfter(
+                        DateTime(today.year, today.month, today.day),
+                      );
                   final hasNote =
                       cell.journalNote != null && cell.journalNote!.trim().isNotEmpty;
 
                   return InkWell(
                     borderRadius: BorderRadius.circular(10),
-                    onTap: canTap
-                        ? () => _openJournalForDay(
-                              cell.date,
-                              existingEmoji: cell.emotionEmoji,
-                              existingNote: cell.journalNote,
-                              alreadyCheckedIn:
-                                  cell.status == StreakDayStatus.checkedIn,
-                            )
-                        : null,
+                    onTap: isPending
+                        ? () {
+                            ScaffoldMessenger.of(context)
+                              ..hideCurrentSnackBar()
+                              ..showSnackBar(
+                                const SnackBar(
+                                  content: Text('Biên lai ngày này đang chờ Trưởng nhóm duyệt.'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                          }
+                        : (canTap
+                            ? () => _openJournalForDay(
+                                  cell.date,
+                                  existingEmoji: cell.emotionEmoji,
+                                  existingNote: cell.journalNote,
+                                  alreadyCheckedIn:
+                                      cell.status == StreakDayStatus.checkedIn,
+                                )
+                            : null),
                     child: Container(
                       decoration: BoxDecoration(
                         color: bg,
@@ -449,28 +462,44 @@ class _DailyYouStreakCalendarState
                 ),
               ),
               const SizedBox(height: 14),
-              AppPrimaryButton(
-                label: _isCheckingIn
-                    ? 'Đang ghi nhận...'
-                    : (checkedInToday
-                        ? 'Cập nhật nhật ký hôm nay'
-                        : 'Điểm danh hôm nay'),
-                icon: checkedInToday
-                    ? Icons.edit_note_rounded
-                    : Icons.local_fire_department_rounded,
-                backgroundColor:
-                    checkedInToday ? AppColors.primary : AppColors.mint,
-                onPressed: _isCheckingIn
-                    ? null
-                    : () {
-                        final todayJournal = journals[todayIso];
-                        _openJournalForDay(
-                          today,
-                          existingEmoji: todayJournal?.emoji,
-                          existingNote: todayJournal?.note,
-                          alreadyCheckedIn: checkedInToday,
-                        );
-                      },
+              Builder(
+                builder: (context) {
+                  final pendingToday = !checkedInToday &&
+                      deposits.any(
+                        (d) =>
+                            d.status == DepositStatus.pending &&
+                            SavingStreakCalculator.formatIsoDate(d.depositDate) ==
+                                todayIso,
+                      );
+                  return AppPrimaryButton(
+                    label: _isCheckingIn
+                        ? 'Đang ghi nhận...'
+                        : (pendingToday
+                            ? 'Đang chờ duyệt hôm nay'
+                            : (checkedInToday
+                                ? 'Cập nhật nhật ký hôm nay'
+                                : 'Điểm danh hôm nay')),
+                    icon: pendingToday
+                        ? Icons.hourglass_top_rounded
+                        : (checkedInToday
+                            ? Icons.edit_note_rounded
+                            : Icons.local_fire_department_rounded),
+                    backgroundColor: pendingToday
+                        ? AppColors.amber
+                        : (checkedInToday ? AppColors.primary : AppColors.mint),
+                    onPressed: (_isCheckingIn || pendingToday)
+                        ? null
+                        : () {
+                            final todayJournal = journals[todayIso];
+                            _openJournalForDay(
+                              today,
+                              existingEmoji: todayJournal?.emoji,
+                              existingNote: todayJournal?.note,
+                              alreadyCheckedIn: checkedInToday,
+                            );
+                          },
+                  );
+                },
               ),
             ],
           ),

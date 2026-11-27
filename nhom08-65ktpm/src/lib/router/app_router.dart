@@ -126,7 +126,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.checklist,
                 name: 'goal_and_checklist',
-                builder: (context, state) => const ChecklistScreen(),
+                builder: (context, state) => const _LiveChecklistPage(),
               ),
             ],
           ),
@@ -162,6 +162,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+class _LiveChecklistPage extends ConsumerWidget {
+  const _LiveChecklistPage();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tripId = ref.watch(currentTripIdProvider) ?? 'demo-trip';
+    return ChecklistScreen(tripId: tripId);
+  }
+}
 
 class _LiveMomoFundPage extends ConsumerWidget {
   const _LiveMomoFundPage();

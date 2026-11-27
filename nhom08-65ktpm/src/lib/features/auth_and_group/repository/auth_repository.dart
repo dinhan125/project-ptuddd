@@ -290,7 +290,19 @@ class FirebaseAuthRepository implements AuthRepository {
 
 /// Offline/preview fallback repository used when Firebase is not initialized.
 class InMemoryAuthRepository implements AuthRepository {
+  static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
   final _controller = StreamController<AppUser?>.broadcast();
+  final Map<String, String> _credentials = {
+    'host.test@travelbuddy.vn': 'Test@123456',
+    'member.test@travelbuddy.vn': 'Test@123456',
+    '2351170568@e.tlu.edu.vn': 'Test@123456',
+  };
+  final Map<String, String> _displayNames = {
+    'host.test@travelbuddy.vn': 'Đỗ Đình An',
+    'member.test@travelbuddy.vn': 'Nguyễn Xuân Bình',
+    '2351170568@e.tlu.edu.vn': 'Đỗ Đình An',
+  };
   AppUser? _user;
 
   InMemoryAuthRepository({bool seedSignedIn = true}) {
@@ -321,11 +333,29 @@ class InMemoryAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!_emailRegex.hasMatch(normalizedEmail)) {
+      throw const AuthFailure('Địa chỉ email không đúng định dạng.');
+    }
+    if (password.length < 6) {
+      throw const AuthFailure('Email hoặc mật khẩu chưa chính xác.');
+    }
+    final expectedPassword = _credentials[normalizedEmail];
+    if (expectedPassword != null && expectedPassword != password) {
+      throw const AuthFailure('Email hoặc mật khẩu chưa chính xác.');
+    }
+
     final now = DateTime.now();
-    final name = email.contains('@') ? email.split('@').first : 'Đỗ Đình An';
+    final name = _displayNames[normalizedEmail] ??
+        (normalizedEmail.contains('@')
+            ? normalizedEmail.split('@').first
+            : 'Đỗ Đình An');
+    final uid = normalizedEmail == 'member.test@travelbuddy.vn'
+        ? 'demo-member-binh'
+        : 'demo-host-an';
     _user = AppUser(
-      uid: 'demo-host-an',
-      email: email.trim(),
+      uid: uid,
+      email: normalizedEmail,
       displayName: name.isEmpty ? 'Đỗ Đình An' : name,
       tripIds: const ['demo-trip'],
       createdAt: now,
@@ -341,11 +371,23 @@ class InMemoryAuthRepository implements AuthRepository {
     required String password,
     required String displayName,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!_emailRegex.hasMatch(normalizedEmail)) {
+      throw const AuthFailure('Địa chỉ email không đúng định dạng.');
+    }
+    if (password.length < 6) {
+      throw const AuthFailure('Mật khẩu quá yếu (tối thiểu 6 ký tự).');
+    }
+    final trimmedName =
+        displayName.trim().isEmpty ? 'Thành viên mới' : displayName.trim();
+    _credentials[normalizedEmail] = password;
+    _displayNames[normalizedEmail] = trimmedName;
+
     final now = DateTime.now();
     _user = AppUser(
       uid: 'demo-user-${now.millisecondsSinceEpoch}',
-      email: email.trim(),
-      displayName: displayName.trim().isEmpty ? 'Thành viên mới' : displayName.trim(),
+      email: normalizedEmail,
+      displayName: trimmedName,
       tripIds: const [],
       createdAt: now,
       updatedAt: now,

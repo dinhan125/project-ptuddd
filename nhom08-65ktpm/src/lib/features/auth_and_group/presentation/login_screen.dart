@@ -27,11 +27,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
       _showMessage('Vui lòng nhập đầy đủ Email và Mật khẩu.');
+      return;
+    }
+    if (!_emailRegex.hasMatch(email)) {
+      _showMessage('Địa chỉ email không đúng định dạng.');
       return;
     }
 
@@ -99,7 +105,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -177,6 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ),
                                     Expanded(
                                       child: TextField(
+                                        key: const Key('login_email_field'),
                                         controller: _emailController,
                                         enabled: !isLoading,
                                         keyboardType: TextInputType.emailAddress,
@@ -209,6 +218,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ),
                                     Expanded(
                                       child: TextField(
+                                        key: const Key('login_password_field'),
                                         controller: _passwordController,
                                         enabled: !isLoading,
                                         obscureText: _obscurePassword,
@@ -252,6 +262,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 8),
                         AppPrimaryButton(
+                          key: const Key('login_submit_button'),
                           label: isLoading ? 'Đang đăng nhập...' : 'Đăng nhập',
                           onPressed: isLoading ? null : _handleLogin,
                         ),

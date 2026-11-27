@@ -111,6 +111,7 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           TextField(
+            key: const Key('activity_name_field'),
             controller: name,
             decoration: const InputDecoration(labelText: 'Tên địa điểm *'),
           ),
@@ -158,6 +159,7 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
             onChanged: (v) => setState(() => day = v!),
           ),
           ListTile(
+            key: const Key('activity_start_time_tile'),
             title: Text('Bắt đầu: ${time.format(context)}'),
             trailing: const Icon(Icons.schedule),
             onTap: () async {
@@ -169,6 +171,7 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
             },
           ),
           TextField(
+            key: const Key('activity_duration_field'),
             controller: duration,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
@@ -192,6 +195,7 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
           ),
           if (conflict)
             const Card(
+              key: Key('activity_conflict_warning'),
               color: Color(0xfffff3cd),
               child: Padding(
                 padding: EdgeInsets.all(12),
@@ -203,6 +207,7 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
             ),
           const SizedBox(height: 16),
           FilledButton.icon(
+            key: const Key('activity_save_button'),
             onPressed: _submit,
             icon: const Icon(Icons.save),
             label: const Text('Lưu lịch trình'),

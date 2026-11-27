@@ -264,4 +264,47 @@ void main() {
       expect(container.read(savingJournalProvider(params)), isEmpty);
     });
   });
+
+  group('SavingPlanProvider Tests', () {
+    test('createSavingPlan preserves existing paidAmount and completedInstallments when updating plan', () async {
+      final repo = InMemorySavingRepository();
+      const tripId = 'trip_plan_preserve';
+      const memberId = 'm1';
+      const params = SavingPlanParams(tripId: tripId, memberId: memberId);
+
+      await repo.saveSavingPlan(
+        SavingPlan(
+          id: '${tripId}_$memberId',
+          tripId: tripId,
+          memberId: memberId,
+          memberName: 'Đỗ Đình An',
+          targetAmount: 2000000,
+          paidAmount: 1484000,
+          frequency: SavingFrequency.weekly,
+          installmentAmount: 200000,
+          totalInstallments: 10,
+          completedInstallments: 7,
+          startDate: DateTime(2026, 11, 1),
+          deadlineDate: DateTime(2026, 12, 15),
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [savingRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+
+      final updated = await container.read(savingPlanProvider(params).notifier).createSavingPlan(
+            memberName: 'Đỗ Đình An',
+            targetAmount: 2500000,
+            startDate: DateTime(2026, 11, 27),
+            deadlineDate: DateTime(2026, 12, 27),
+            preferredFrequency: SavingFrequency.weekly,
+          );
+
+      expect(updated.paidAmount, 1484000);
+      expect(updated.completedInstallments, 7);
+      expect(updated.status, SavingPlanStatus.active);
+    });
+  });
 }

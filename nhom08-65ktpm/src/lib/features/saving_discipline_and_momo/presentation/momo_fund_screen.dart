@@ -224,8 +224,11 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
 
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 100,
+        leadingWidth: 120,
         leading: TextButton.icon(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
           onPressed: () {
             if (GoRouter.maybeOf(context) != null) {
               context.go('/trips');

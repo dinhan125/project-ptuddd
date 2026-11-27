@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_inset_card.dart';
+import '../../../../core/widgets/app_primary_button.dart';
+import '../../../../core/widgets/app_section_header.dart';
+import '../../../../core/widgets/app_segmented_control.dart';
+import '../../../../core/widgets/app_status_badge.dart';
 import '../../models/saving_plan.dart';
 import '../../providers/saving_plan_provider.dart';
+import '../../utils/momo_deeplink_helper.dart';
 import '../../utils/saving_calculator.dart';
 import '../widgets/module_provider_scope.dart';
 
@@ -62,6 +70,7 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
   late DateTime _deadlineDate;
   SavingFrequency _frequency = SavingFrequency.weekly;
   SavingPlanCalculationResult? _calculationPreview;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -81,7 +90,9 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
   }
 
   void _updateCalculationPreview() {
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final amount = double.tryParse(amountText) ?? 0.0;
+
     if (amount > 0 && _deadlineDate.isAfter(_startDate)) {
       setState(() {
         _calculationPreview = SavingCalculator.calculateInstallments(
@@ -92,9 +103,7 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
         );
       });
     } else {
-      setState(() {
-        _calculationPreview = null;
-      });
+      setState(() => _calculationPreview = null);
     }
   }
 
@@ -105,19 +114,18 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
       firstDate: _startDate.add(const Duration(days: 1)),
       lastDate: _startDate.add(const Duration(days: 365 * 2)),
     );
-    if (picked != null) {
-      setState(() {
-        _deadlineDate = picked;
-      });
+    if (picked != null && mounted) {
+      setState(() => _deadlineDate = picked);
       _updateCalculationPreview();
     }
   }
 
   Future<void> _savePlan() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSaving || !_formKey.currentState!.validate()) return;
     final amount = double.parse(_amountController.text.trim());
-
     final params = SavingPlanParams(tripId: widget.tripId, memberId: widget.memberId);
+
+    setState(() => _isSaving = true);
     try {
       await ref.read(savingPlanProvider(params).notifier).createSavingPlan(
             memberName: widget.memberName,
@@ -126,25 +134,39 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
             deadlineDate: _deadlineDate,
             preferredFrequency: _frequency,
           );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kế hoạch tích góp đã được tạo thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã lưu kế hoạch tích góp thành công!'),
+          backgroundColor: AppColors.mint,
+        ),
+      );
     } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi tạo kế hoạch: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tạo kế hoạch: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() => _isSaving = false);
       }
     }
   }
+
+  String _formatDate(DateTime date) {
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$d/$m/${date.year}';
+  }
+
+  String _frequencyLabel(SavingFrequency freq) => switch (freq) {
+        SavingFrequency.daily => 'Hàng ngày',
+        SavingFrequency.weekly => 'Hàng tuần',
+        SavingFrequency.monthly => 'Hàng tháng',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -158,45 +180,43 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
       ),
       body: planAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Lỗi: $err')),
-        data: (existingPlan) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (existingPlan != null) ...[
-                  _buildExistingPlanSummary(existingPlan),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Điều chỉnh lại kế hoạch',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _buildPlanForm(),
-                if (_calculationPreview != null) ...[
-                  const SizedBox(height: 24),
-                  _buildCalculationPreviewCard(_calculationPreview!),
-                ],
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _savePlan,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: Text(
-                    existingPlan != null ? 'Cập nhật Kế hoạch' : 'Tạo Kế hoạch Tích góp',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ],
+        error: (err, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Không thể tải kế hoạch: $err',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.error),
             ),
+          ),
+        ),
+        data: (existingPlan) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (existingPlan != null) ...[
+                _buildExistingPlanSummary(existingPlan),
+                const SizedBox(height: 24),
+              ],
+              AppSectionHeader(
+                title: existingPlan != null
+                    ? 'Điều chỉnh lại kế hoạch'
+                    : 'Thiết lập kế hoạch mới',
+              ),
+              _buildPlanForm(),
+              if (_calculationPreview != null) ...[
+                const SizedBox(height: 24),
+                const AppSectionHeader(title: 'Dự kiến chia kỳ đóng'),
+                _buildCalculationPreviewCard(_calculationPreview!),
+              ],
+              const SizedBox(height: 20),
+              AppPrimaryButton(
+                label: _isSaving ? 'Đang lưu kế hoạch...' : 'Lưu kế hoạch tích góp',
+                icon: Icons.check_circle_outline,
+                onPressed: _isSaving ? null : _savePlan,
+              ),
+              const SizedBox(height: 16),
+            ],
           );
         },
       ),
@@ -204,198 +224,265 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
   }
 
   Widget _buildExistingPlanSummary(SavingPlan plan) {
-    final progress = plan.targetAmount > 0
-        ? (plan.paidAmount / plan.targetAmount).clamp(0.0, 1.0)
-        : 0.0;
+    final double progress =
+        plan.targetAmount > 0 ? (plan.paidAmount / plan.targetAmount).clamp(0.0, 1.0) : 0.0;
+    final isCompleted = plan.status == SavingPlanStatus.completed;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Kế hoạch của ${plan.memberName}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                Chip(
-                  label: Text(
-                    plan.status == SavingPlanStatus.completed ? 'ĐÃ HOÀN THÀNH' : 'ĐANG THỰC HIỆN',
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AppSectionHeader(title: 'Kế hoạch hiện tại'),
+        AppInsetCard(
+          borderRadius: 16,
+          padding: const EdgeInsets.all(16),
+          borderColor: isCompleted ? AppColors.mint : AppColors.outlineVariantSoft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      plan.memberName,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  backgroundColor: plan.status == SavingPlanStatus.completed
-                      ? Colors.green
-                      : Theme.of(context).primaryColor,
+                  const SizedBox(width: 8),
+                  AppStatusBadge(
+                    label: isCompleted ? 'Đã hoàn thành' : 'Đang thực hiện',
+                    tone: isCompleted ? AppBadgeTone.mint : AppBadgeTone.primary,
+                    icon: isCompleted ? Icons.verified : Icons.timelapse,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                MoMoDeeplinkHelper.formatVnd(plan.paidAmount.round()),
+                style: AppTheme.monoAmount(fontSize: 26, fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'Mục tiêu: ${MoMoDeeplinkHelper.formatVnd(plan.targetAmount.round())} • ${(progress * 100).round()}%',
+                style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: AppColors.surfaceContainerHigh,
+                  valueColor: AlwaysStoppedAnimation(
+                    isCompleted ? AppColors.mint : AppColors.primary,
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Đã nộp: ${plan.paidAmount.toStringAsFixed(0)} VND'),
-                Text('Mục tiêu: ${plan.targetAmount.toStringAsFixed(0)} VND'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tiến độ: ${plan.completedInstallments}/${plan.totalInstallments} kỳ '
-              '(${plan.installmentAmount.toStringAsFixed(0)} VND/${plan.frequency.name})',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-          ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Tiến độ: ${plan.completedInstallments}/${plan.totalInstallments} kỳ',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${MoMoDeeplinkHelper.formatVnd(plan.installmentAmount.round())} / ${_frequencyLabel(plan.frequency).toLowerCase()}',
+                    style: AppTheme.monoAmount(fontSize: 13, color: AppColors.onPrimaryContainer),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildPlanForm() {
+    final frequencyIndex = switch (_frequency) {
+      SavingFrequency.daily => 0,
+      SavingFrequency.weekly => 1,
+      SavingFrequency.monthly => 2,
+    };
+
     return Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            controller: _amountController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Tổng kinh phí mục tiêu (VND)',
-              prefixIcon: Icon(Icons.payments_outlined),
-              border: OutlineInputBorder(),
+      child: AppInsetCard(
+        borderRadius: 16,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Mục tiêu tích góp cá nhân (VND)',
+                suffixText: 'đ',
+                prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+              ),
+              validator: (val) {
+                if (val == null || val.trim().isEmpty) return 'Vui lòng nhập số tiền';
+                final num = double.tryParse(val.trim());
+                if (num == null || num <= 0) return 'Số tiền phải lớn hơn 0';
+                return null;
+              },
+              onChanged: (_) => _updateCalculationPreview(),
             ),
-            validator: (val) {
-              if (val == null || val.isEmpty) return 'Vui lòng nhập số tiền';
-              final numVal = double.tryParse(val);
-              if (numVal == null || numVal <= 0) return 'Số tiền phải lớn hơn 0';
-              return null;
-            },
-            onChanged: (_) => _updateCalculationPreview(),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: Colors.grey.shade400),
-              borderRadius: BorderRadius.circular(4),
+            const SizedBox(height: 14),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _selectDeadlineDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.outlineVariantSoft),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.event_outlined, color: AppColors.primary, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Hạn chót hoàn thành (Ngày khởi hành)',
+                            style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_formatDate(_deadlineDate)} (Còn ${_deadlineDate.difference(_startDate).inDays} ngày)',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+                  ],
+                ),
+              ),
             ),
-            leading: const Icon(Icons.calendar_today_outlined),
-            title: const Text('Ngày xuất phát (Hạn chót)'),
-            subtitle: Text('${_deadlineDate.day}/${_deadlineDate.month}/${_deadlineDate.year}'),
-            trailing: const Icon(Icons.edit_calendar),
-            onTap: _selectDeadlineDate,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Chu kỳ tích góp mong muốn:',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<SavingFrequency>(
-            segments: const [
-              ButtonSegment(
-                value: SavingFrequency.daily,
-                label: Text('Hàng ngày'),
-                icon: Icon(Icons.today),
-              ),
-              ButtonSegment(
-                value: SavingFrequency.weekly,
-                label: Text('Hàng tuần'),
-                icon: Icon(Icons.date_range),
-              ),
-              ButtonSegment(
-                value: SavingFrequency.monthly,
-                label: Text('Hàng tháng'),
-                icon: Icon(Icons.calendar_month),
-              ),
-            ],
-            selected: {_frequency},
-            onSelectionChanged: (selected) {
-              setState(() {
-                _frequency = selected.first;
-              });
-              _updateCalculationPreview();
-            },
-          ),
-        ],
+            const SizedBox(height: 16),
+            const Text(
+              'Chu kỳ đóng quỹ',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            AppSegmentedControl(
+              segments: const ['Hàng ngày', 'Hàng tuần', 'Hàng tháng'],
+              selectedIndex: frequencyIndex,
+              onChanged: (index) {
+                setState(() {
+                  _frequency = switch (index) {
+                    0 => SavingFrequency.daily,
+                    1 => SavingFrequency.weekly,
+                    _ => SavingFrequency.monthly,
+                  };
+                });
+                _updateCalculationPreview();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildCalculationPreviewCard(SavingPlanCalculationResult result) {
-    return Card(
-      color: Colors.blue.shade50,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  'Kế hoạch chia nhỏ tự động',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade900,
-                      ),
+    final previewItems = result.schedule.take(5).toList();
+    return AppInsetCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${result.totalInstallments} kỳ (${_frequencyLabel(result.frequency)})',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '• Tần suất: ${result.frequency == SavingFrequency.daily ? "Hàng ngày" : result.frequency == SavingFrequency.weekly ? "Hàng tuần" : "Hàng tháng"}',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            Text('• Số kỳ đóng: ${result.totalInstallments} kỳ'),
-            Text('• Số tiền mỗi kỳ: ${result.installmentAmount.toStringAsFixed(0)} VND'),
-            if (result.finalInstallmentAmount != result.installmentAmount)
-              Text(
-                '• Kỳ cuối cùng điều chỉnh: ${result.finalInstallmentAmount.toStringAsFixed(0)} VND',
-                style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold),
               ),
-            const SizedBox(height: 12),
-            const Text(
-              'Lịch đóng chi tiết các kỳ:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+              Text(
+                '${MoMoDeeplinkHelper.formatVnd(result.installmentAmount.round())} / kỳ',
+                style: AppTheme.monoAmount(fontSize: 15, color: AppColors.primary),
+              ),
+            ],
+          ),
+          if (result.finalInstallmentAmount != result.installmentAmount) ...[
             const SizedBox(height: 6),
-            SizedBox(
-              height: 140,
-              child: ListView.separated(
-                itemCount: result.schedule.length,
-                separatorBuilder: (_, _) => const Divider(height: 8),
-                itemBuilder: (context, idx) {
-                  final item = result.schedule[idx];
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Kỳ ${item.index} (${item.dueDate.day}/${item.dueDate.month}/${item.dueDate.year})'),
-                      Text(
-                        '${item.amount.toStringAsFixed(0)} VND',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: item.isAdjusted ? Colors.deepOrange : Colors.black87,
-                        ),
+            Text(
+              'Kỳ cuối điều chỉnh: ${MoMoDeeplinkHelper.formatVnd(result.finalInstallmentAmount.round())} (bù phần dư làm tròn)',
+              style: const TextStyle(fontSize: 12, color: AppColors.onAmberContainer),
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Divider(),
+          ...previewItems.map(
+            (item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: item.isAdjusted
+                          ? AppColors.amberContainer
+                          : AppColors.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${item.index}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: item.isAdjusted
+                            ? AppColors.onAmberContainer
+                            : AppColors.onPrimaryContainer,
                       ),
-                    ],
-                  );
-                },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Hạn ${_formatDate(item.dueDate)}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  Text(
+                    MoMoDeeplinkHelper.formatVnd(item.amount.round()),
+                    style: AppTheme.monoAmount(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (result.schedule.length > 5) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                '... và ${result.schedule.length - 5} kỳ tiếp theo',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

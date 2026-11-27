@@ -248,9 +248,13 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                     onPressed: _isSubmitting ? null : () => Navigator.pop(context),
                     child: const Text('Đóng', style: TextStyle(color: AppColors.onPrimaryContainer)),
                   ),
-                  Text(
-                    'Nạp quỹ ${widget.cycleLabel}',
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  Expanded(
+                    child: Text(
+                      'Nạp quỹ ${widget.cycleLabel}',
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 60),
                 ],

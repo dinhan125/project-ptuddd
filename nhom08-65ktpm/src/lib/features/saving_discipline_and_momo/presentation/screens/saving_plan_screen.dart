@@ -12,6 +12,7 @@ import '../../models/saving_plan.dart';
 import '../../providers/saving_plan_provider.dart';
 import '../../utils/momo_deeplink_helper.dart';
 import '../../utils/saving_calculator.dart';
+import '../widgets/module_notification.dart';
 import '../widgets/module_provider_scope.dart';
 
 class SavingPlanScreen extends StatelessWidget {
@@ -136,20 +137,10 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
             preferredFrequency: _frequency,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã lưu kế hoạch tích góp thành công!'),
-          backgroundColor: AppColors.mint,
-        ),
-      );
+      ModuleNotification.success(context, 'Đã lưu kế hoạch tích góp thành công!');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi tạo kế hoạch: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      ModuleNotification.error(context, 'Lỗi tạo kế hoạch: $e');
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

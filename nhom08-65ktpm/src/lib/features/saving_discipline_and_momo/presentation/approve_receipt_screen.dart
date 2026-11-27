@@ -12,6 +12,7 @@ import '../../../core/widgets/app_status_badge.dart';
 import '../models/deposit_record.dart';
 import '../providers/receipt_approval_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
+import 'widgets/module_notification.dart';
 import 'widgets/module_provider_scope.dart';
 
 /// Màn hình Duyệt Biên Lai Nạp Quỹ (Dành cho Trưởng nhóm / Fund Host).
@@ -63,14 +64,13 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
           );
       if (!mounted) return;
       final formatted = MoMoDeeplinkHelper.formatVnd(record.amount.round());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã xác nhận biên lai của ${record.memberName} (+$formatted)')),
+      ModuleNotification.success(
+        context,
+        'Đã xác nhận biên lai của ${record.memberName} (+$formatted)',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể duyệt biên lai: $e')),
-      );
+      ModuleNotification.error(context, 'Không thể duyệt biên lai: $e');
     } finally {
       if (mounted) {
         setState(() => _processingIds.remove(record.id));
@@ -94,14 +94,10 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
             reason: reason.isEmpty ? null : reason,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã từ chối biên lai của ${record.memberName}')),
-      );
+      ModuleNotification.info(context, 'Đã từ chối biên lai của ${record.memberName}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể từ chối biên lai: $e')),
-      );
+      ModuleNotification.error(context, 'Không thể từ chối biên lai: $e');
     } finally {
       if (mounted) {
         setState(() => _processingIds.remove(record.id));
@@ -112,9 +108,7 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
   void _openFullScreenViewer(DepositRecord record) {
     final imageUrl = record.receiptImageUrl;
     if (imageUrl == null || imageUrl.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giao dịch này chưa đính kèm ảnh biên lai.')),
-      );
+      ModuleNotification.warning(context, 'Giao dịch này chưa đính kèm ảnh biên lai.');
       return;
     }
 

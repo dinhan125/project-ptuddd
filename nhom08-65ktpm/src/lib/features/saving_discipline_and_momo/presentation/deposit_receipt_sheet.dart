@@ -15,6 +15,7 @@ import '../models/saving_plan.dart';
 import '../providers/receipt_approval_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
 import '../utils/momo_launcher.dart';
+import 'widgets/module_notification.dart';
 import 'widgets/module_provider_scope.dart';
 
 /// Modal Sheet Nạp Quỹ MoMo & Nộp Biên Lai (Dành cho Thành viên).
@@ -193,10 +194,9 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
 
       if (!mounted) return;
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã gửi biên lai! Trạng thái chuyển sang Chờ Trưởng nhóm duyệt.'),
-        ),
+      ModuleNotification.success(
+        context,
+        'Đã gửi biên lai! Trạng thái chuyển sang Chờ Trưởng nhóm duyệt.',
       );
     } catch (e) {
       if (!mounted) return;
@@ -393,8 +393,9 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                               Clipboard.setData(
                                 ClipboardData(text: '${widget.amount.round()} - $transferNote'),
                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Đã sao chép số tiền & nội dung nộp quỹ')),
+                              ModuleNotification.info(
+                                context,
+                                'Đã sao chép số tiền & nội dung nộp quỹ',
                               );
                             },
                             icon: const Icon(Icons.content_copy, size: 17),

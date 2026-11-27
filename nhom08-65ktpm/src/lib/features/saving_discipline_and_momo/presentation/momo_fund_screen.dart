@@ -270,7 +270,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         actions: [
           IconButton(
             tooltip: 'Kế hoạch tích góp',
-            icon: const Icon(Icons.savings_outlined, color: AppColors.primary),
+            icon: const Icon(Icons.event_repeat_rounded, color: AppColors.primary),
             onPressed: _openSavingPlanScreen,
           ),
           IconButton(
@@ -280,9 +280,56 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
+          if (isHost && pendingCount > 0)
+            Material(
+              color: AppColors.amberContainer,
+              child: InkWell(
+                onTap: _openApproveScreen,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: AppColors.amber.withValues(alpha: 0.45)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.pending_actions_rounded,
+                        color: AppColors.onAmberContainer,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Có $pendingCount biên lai đang chờ Trưởng nhóm duyệt',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onAmberContainer,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: AppColors.onAmberContainer,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
           // 1. Thẻ Liên kết Quỹ nhóm MoMo
           AppInsetCard(
             borderRadius: 16,
@@ -391,39 +438,6 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // 2. Banner Hàng đợi duyệt biên lai (chỉ hiện với Trưởng nhóm / Fund Host)
-          if (isHost && pendingCount > 0) ...[
-            GestureDetector(
-              onTap: _openApproveScreen,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.amberContainer,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.amber),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.pending_actions, color: AppColors.onAmberContainer, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Có $pendingCount biên lai nạp quỹ MoMo đang chờ Trưởng nhóm duyệt',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.onAmberContainer,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: AppColors.onAmberContainer),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
 
           if (depositReminder != null && depositReminder.shouldWarn) ...[
             DepositDueWarningBanner(
@@ -571,6 +585,9 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                       );
                     }),
                   ),
+          ),
+        ],
+      ),
           ),
         ],
       ),

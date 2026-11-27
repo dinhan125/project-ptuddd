@@ -15,6 +15,7 @@ import '../../providers/saving_streak_provider.dart';
 import '../../utils/momo_deeplink_helper.dart';
 import '../../utils/saving_streak_calculator.dart';
 import 'deposit_due_warning_banner.dart';
+import 'module_notification.dart';
 import 'saving_journal_dialog.dart';
 
 /// DailyYou-style interactive Saving Streak Calendar widget.
@@ -66,15 +67,7 @@ class _DailyYouStreakCalendarState
   }
 
   void _showInfoSnackBar(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    ModuleNotification.info(context, message);
   }
 
   Future<void> _openJournalForDay(
@@ -110,45 +103,16 @@ class _DailyYouStreakCalendarState
         if (isTodayDate) {
           _returnToToday();
         }
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            backgroundColor: AppColors.mintContainer,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.mint),
-            ),
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 18,
-                  color: AppColors.onMintContainer,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    alreadyCheckedIn
-                        ? 'Đã cập nhật nhật ký tích góp ${result.emoji}!'
-                        : 'Điểm danh thành công ${result.emoji}!',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.onMintContainer,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        ModuleNotification.success(
+          context,
+          alreadyCheckedIn
+              ? 'Đã cập nhật nhật ký tích góp ${result.emoji}!'
+              : 'Điểm danh thành công ${result.emoji}!',
         );
       }
     } catch (e) {
       if (mounted) {
-        _showInfoSnackBar('Không thể lưu điểm danh: $e');
+        ModuleNotification.error(context, 'Không thể lưu điểm danh: $e');
       }
     } finally {
       if (mounted) {

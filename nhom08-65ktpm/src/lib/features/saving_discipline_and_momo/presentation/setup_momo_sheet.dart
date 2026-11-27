@@ -12,9 +12,10 @@ import '../../../core/widgets/app_segmented_control.dart';
 import '../providers/momo_fund_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
 import 'screens/momo_qr_scanner_screen.dart';
+import 'widgets/module_provider_scope.dart';
 
 /// Modal Sheet Thiết lập Kế hoạch & Liên kết Quỹ nhóm MoMo (Dành cho Trưởng nhóm).
-class SetupMomoSheet extends ConsumerStatefulWidget {
+class SetupMomoSheet extends StatelessWidget {
   const SetupMomoSheet({
     super.key,
     required this.initialFundName,
@@ -35,10 +36,45 @@ class SetupMomoSheet extends ConsumerStatefulWidget {
   final String initialFundLink;
 
   @override
-  ConsumerState<SetupMomoSheet> createState() => _SetupMomoSheetState();
+  Widget build(BuildContext context) {
+    return ModuleProviderScope(
+      child: _SetupMomoContent(
+        initialFundName: initialFundName,
+        tripId: tripId,
+        hostUserId: hostUserId,
+        hostName: hostName,
+        targetTotalAmount: targetTotalAmount,
+        initialPhoneNumber: initialPhoneNumber,
+        initialFundLink: initialFundLink,
+      ),
+    );
+  }
 }
 
-class _SetupMomoSheetState extends ConsumerState<SetupMomoSheet> {
+class _SetupMomoContent extends ConsumerStatefulWidget {
+  const _SetupMomoContent({
+    required this.initialFundName,
+    required this.tripId,
+    required this.hostUserId,
+    required this.hostName,
+    required this.targetTotalAmount,
+    required this.initialPhoneNumber,
+    required this.initialFundLink,
+  });
+
+  final String initialFundName;
+  final String tripId;
+  final String hostUserId;
+  final String hostName;
+  final double targetTotalAmount;
+  final String initialPhoneNumber;
+  final String initialFundLink;
+
+  @override
+  ConsumerState<_SetupMomoContent> createState() => _SetupMomoContentState();
+}
+
+class _SetupMomoContentState extends ConsumerState<_SetupMomoContent> {
   int _cycleMode = 1; // 0: Ngày | 1: Tuần | 2: Tháng
   late final TextEditingController _fundNameCtrl;
   late final TextEditingController _phoneCtrl;

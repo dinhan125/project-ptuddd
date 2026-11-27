@@ -4,16 +4,17 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/momo_fund_config.dart';
-import '../models/saving_plan.dart';
 import '../models/deposit_record.dart';
 import '../models/member_streak.dart';
+import '../models/momo_fund_config.dart';
+import '../models/saving_plan.dart';
+import '../utils/saving_streak_calculator.dart';
 import 'in_memory_saving_repository.dart';
 import 'saving_repository.dart';
 
 final savingRepositoryProvider = Provider<SavingRepository>((ref) {
   if (Firebase.apps.isEmpty) {
-    return InMemorySavingRepository();
+    return InMemorySavingRepository(seedDemo: true);
   }
   return SavingRepositoryImpl(
     firestore: FirebaseFirestore.instance,
@@ -35,14 +36,20 @@ class SavingRepositoryImpl implements SavingRepository {
   DocumentReference _fundConfigDoc(String tripId) =>
       _firestore.collection('trips').doc(tripId).collection('momo_fund_config').doc('default');
 
+  CollectionReference _savingPlansColl(String tripId) =>
+      _firestore.collection('trips').doc(tripId).collection('saving_plans');
+
   DocumentReference _savingPlanDoc(String tripId, String memberId) =>
-      _firestore.collection('trips').doc(tripId).collection('saving_plans').doc(memberId);
+      _savingPlansColl(tripId).doc(memberId);
 
   CollectionReference _depositRecordsColl(String tripId) =>
       _firestore.collection('trips').doc(tripId).collection('deposit_records');
 
+  CollectionReference _memberStreaksColl(String tripId) =>
+      _firestore.collection('trips').doc(tripId).collection('member_streaks');
+
   DocumentReference _memberStreakDoc(String tripId, String memberId) =>
-      _firestore.collection('trips').doc(tripId).collection('member_streaks').doc(memberId);
+      _memberStreaksColl(tripId).doc(memberId);
 
   // --- MoMo Fund Config ---
   @override
@@ -82,6 +89,15 @@ class SavingRepositoryImpl implements SavingRepository {
   }
 
   @override
+  Stream<List<SavingPlan>> watchTripSavingPlans(String tripId) {
+    return _savingPlansColl(tripId).snapshots().map(
+          (snapshot) => snapshot.docs
+              .map((d) => SavingPlan.fromMap(d.data() as Map<String, dynamic>, id: d.id))
+              .toList(),
+        );
+  }
+
+  @override
   Future<void> saveSavingPlan(SavingPlan plan) async {
     await _savingPlanDoc(plan.tripId, plan.memberId).set(plan.toMap(), SetOptions(merge: true));
   }
@@ -106,12 +122,13 @@ class SavingRepositoryImpl implements SavingRepository {
   Future<List<DepositRecord>> getPendingDeposits(String tripId) async {
     final snapshot = await _depositRecordsColl(tripId)
         .where('status', isEqualTo: 'PENDING')
-        .orderBy('depositDate', descending: true)
         .get();
 
-    return snapshot.docs
+    final list = snapshot.docs
         .map((d) => DepositRecord.fromMap(d.data() as Map<String, dynamic>, id: d.id))
         .toList();
+    list.sort((a, b) => b.depositDate.compareTo(a.depositDate));
+    return list;
   }
 
   @override
@@ -119,9 +136,24 @@ class SavingRepositoryImpl implements SavingRepository {
     return _depositRecordsColl(tripId)
         .where('status', isEqualTo: 'PENDING')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((d) => DepositRecord.fromMap(d.data() as Map<String, dynamic>, id: d.id))
-            .toList());
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((d) => DepositRecord.fromMap(d.data() as Map<String, dynamic>, id: d.id))
+          .toList();
+      list.sort((a, b) => b.depositDate.compareTo(a.depositDate));
+      return list;
+    });
+  }
+
+  @override
+  Stream<List<DepositRecord>> watchTripDeposits(String tripId) {
+    return _depositRecordsColl(tripId).snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((d) => DepositRecord.fromMap(d.data() as Map<String, dynamic>, id: d.id))
+          .toList();
+      list.sort((a, b) => b.depositDate.compareTo(a.depositDate));
+      return list;
+    });
   }
 
   @override
@@ -140,53 +172,89 @@ class SavingRepositoryImpl implements SavingRepository {
     required String depositId,
     required DepositStatus status,
     required String reviewerId,
+    String? rejectionReason,
   }) async {
     final depositRef = _depositRecordsColl(tripId).doc(depositId);
-    
-    // Using transaction to atomically update deposit and increment fund progress on approval
+
+    // Firestore transactions require all reads before any writes.
     await _firestore.runTransaction((transaction) async {
       final depositSnap = await transaction.get(depositRef);
       if (!depositSnap.exists) {
         throw Exception('Deposit record $depositId not found.');
       }
       final depositData = depositSnap.data() as Map<String, dynamic>;
-      final currentStatus = depositData['status'] as String? ?? 'PENDING';
-      final amount = (depositData['amount'] as num?)?.toDouble() ?? 0.0;
-      final memberId = depositData['memberId'] as String? ?? '';
+      final parsedDeposit = DepositRecord.fromMap(depositData, id: depositSnap.id);
+      final isTransitionToApproved =
+          status == DepositStatus.approved && parsedDeposit.status != DepositStatus.approved;
 
-      String statusStr;
-      switch (status) {
-        case DepositStatus.approved:
-          statusStr = 'APPROVED';
-          break;
-        case DepositStatus.rejected:
-          statusStr = 'REJECTED';
-          break;
-        case DepositStatus.pending:
-          statusStr = 'PENDING';
-          break;
+      final fundDocRef = _fundConfigDoc(tripId);
+      final planDocRef = parsedDeposit.memberId.isNotEmpty
+          ? _savingPlanDoc(tripId, parsedDeposit.memberId)
+          : null;
+      final streakDocRef = parsedDeposit.memberId.isNotEmpty
+          ? _memberStreakDoc(tripId, parsedDeposit.memberId)
+          : null;
+
+      DocumentSnapshot? fundSnap;
+      DocumentSnapshot? planSnap;
+      DocumentSnapshot? streakSnap;
+
+      if (isTransitionToApproved) {
+        fundSnap = await transaction.get(fundDocRef);
+        if (planDocRef != null) {
+          planSnap = await transaction.get(planDocRef);
+        }
+        if (streakDocRef != null) {
+          streakSnap = await transaction.get(streakDocRef);
+        }
       }
 
-      transaction.update(depositRef, {
+      final statusStr = switch (status) {
+        DepositStatus.approved => 'APPROVED',
+        DepositStatus.rejected => 'REJECTED',
+        DepositStatus.pending => 'PENDING',
+      };
+
+      final trimmedReason = rejectionReason?.trim();
+      final updatePayload = <String, dynamic>{
         'status': statusStr,
         'approvedBy': reviewerId,
         'approvedAt': Timestamp.now(),
-      });
+        if (status == DepositStatus.rejected && trimmedReason != null && trimmedReason.isNotEmpty)
+          'rejectionReason': trimmedReason,
+      };
+      transaction.update(depositRef, updatePayload);
 
-      // If transition to APPROVED from PENDING, update fund collected amount and member paidAmount
-      if (status == DepositStatus.approved && currentStatus != 'APPROVED') {
-        final fundDocRef = _fundConfigDoc(tripId);
-        transaction.update(fundDocRef, {
-          'currentCollectedAmount': FieldValue.increment(amount),
-          'updatedAt': Timestamp.now(),
-        });
+      if (isTransitionToApproved) {
+        if (fundSnap != null && fundSnap.exists) {
+          transaction.update(fundDocRef, {
+            'currentCollectedAmount': FieldValue.increment(parsedDeposit.amount),
+            'updatedAt': Timestamp.now(),
+          });
+        }
 
-        if (memberId.isNotEmpty) {
-          final planDocRef = _savingPlanDoc(tripId, memberId);
+        if (planDocRef != null && planSnap != null && planSnap.exists) {
           transaction.update(planDocRef, {
-            'paidAmount': FieldValue.increment(amount),
+            'paidAmount': FieldValue.increment(parsedDeposit.amount),
             'completedInstallments': FieldValue.increment(1),
           });
+        }
+
+        if (streakDocRef != null) {
+          final currentStreak = (streakSnap != null && streakSnap.exists && streakSnap.data() != null)
+              ? MemberStreak.fromMap(
+                  streakSnap.data() as Map<String, dynamic>,
+                  memberId: parsedDeposit.memberId,
+                  tripId: tripId,
+                )
+              : MemberStreak(memberId: parsedDeposit.memberId, tripId: tripId);
+
+          final updatedStreak = SavingStreakCalculator.recordCheckIn(
+            currentStreak,
+            parsedDeposit.depositDate,
+            referenceDate: DateTime.now(),
+          );
+          transaction.set(streakDocRef, updatedStreak.toMap(), SetOptions(merge: true));
         }
       }
     });
@@ -210,6 +278,21 @@ class SavingRepositoryImpl implements SavingRepository {
       }
       return MemberStreak.fromMap(doc.data() as Map<String, dynamic>, memberId: memberId, tripId: tripId);
     });
+  }
+
+  @override
+  Stream<List<MemberStreak>> watchTripStreaks(String tripId) {
+    return _memberStreaksColl(tripId).snapshots().map(
+          (snapshot) => snapshot.docs
+              .map(
+                (d) => MemberStreak.fromMap(
+                  d.data() as Map<String, dynamic>,
+                  memberId: d.id,
+                  tripId: tripId,
+                ),
+              )
+              .toList(),
+        );
   }
 
   @override

@@ -2,103 +2,233 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/data/mock_trip_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_primary_button.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_status_badge.dart';
+import '../models/deposit_record.dart';
+import '../models/member_streak.dart';
 import '../models/momo_fund_config.dart';
+import '../models/saving_plan.dart';
 import '../providers/momo_fund_provider.dart';
+import '../providers/receipt_approval_provider.dart';
+import '../providers/saving_plan_provider.dart';
+import '../utils/momo_deeplink_helper.dart';
+import 'approve_receipt_screen.dart';
 import 'deposit_receipt_sheet.dart';
 import 'screens/momo_payment_screen.dart';
 import 'setup_momo_sheet.dart';
 import 'widgets/daily_you_streak_calendar.dart';
+import 'widgets/fund_progress_card.dart';
+import 'widgets/module_provider_scope.dart';
 
 /// Tab 2 — Quỹ MoMo (Module 2 — Trọng tâm Liên kết Quỹ trong app với Quỹ nhóm MoMo).
 /// Gồm: Thẻ liên kết MoMo, Tiến độ Gây dựng Quỹ, Kỳ đóng quỹ hiện tại,
-/// Lịch chuỗi kỷ luật Saving Streak kiểu DailyYou, Hàng đợi duyệt biên lai & Tiến độ 4 thành viên.
-class MomoFundScreen extends ConsumerStatefulWidget {
+/// Lịch chuỗi kỷ luật Saving Streak kiểu DailyYou, Hàng đợi duyệt biên lai & Bảng xếp hạng thành viên.
+class MomoFundScreen extends StatelessWidget {
   const MomoFundScreen({
     super.key,
     this.tripId = 'trip_demo_01',
     this.memberId = 'member_demo_01',
+    this.memberName = 'Đỗ Đình An',
+    this.isHost,
   });
 
   final String tripId;
   final String memberId;
+  final String memberName;
+  final bool? isHost;
 
   @override
-  ConsumerState<MomoFundScreen> createState() => _MomoFundScreenState();
+  Widget build(BuildContext context) {
+    return ModuleProviderScope(
+      child: _MomoFundContent(
+        tripId: tripId,
+        memberId: memberId,
+        memberName: memberName,
+        isHost: isHost,
+      ),
+    );
+  }
 }
 
-class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
-  bool _isLinked = MockTripData.isMomoLinked;
-  String _fundName = MockTripData.momoFundName;
+class _MomoFundContent extends ConsumerStatefulWidget {
+  const _MomoFundContent({
+    required this.tripId,
+    required this.memberId,
+    required this.memberName,
+    this.isHost,
+  });
 
+  final String tripId;
+  final String memberId;
+  final String memberName;
+  final bool? isHost;
+
+  @override
+  ConsumerState<_MomoFundContent> createState() => _MomoFundContentState();
+}
+
+class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
   Future<void> _openSetupMoMoSheet([MoMoFundConfig? currentConfig]) async {
-    final updatedName = await showModalBottomSheet<String>(
+    await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SetupMomoSheet(
         tripId: widget.tripId,
-        initialFundName: currentConfig?.fundName ?? _fundName,
+        hostUserId: currentConfig?.hostUserId ?? widget.memberId,
+        hostName: currentConfig?.hostName ?? widget.memberName,
+        targetTotalAmount: currentConfig?.targetTotalAmount ?? 8450000,
+        initialFundName: currentConfig?.fundName ?? 'Quỹ chuyến đi',
         initialPhoneNumber: currentConfig?.momoPhoneNumber ?? '',
         initialFundLink: currentConfig?.momoFundDeeplink ?? '',
       ),
     );
-    if (updatedName != null && updatedName.isNotEmpty) {
-      setState(() {
-        _fundName = updatedName;
-        _isLinked = true;
-      });
-    }
   }
 
-  void _openPaymentScreen(MoMoFundConfig config) {
+  void _openPaymentScreen(MoMoFundConfig config, {double? suggestedAmount}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MomoPaymentScreen(
           config: config,
-          memberName: 'Thành viên',
+          memberName: widget.memberName,
+          suggestedAmount: suggestedAmount,
         ),
       ),
     );
   }
 
-  Future<void> _openDepositSheet([MoMoFundConfig? currentConfig]) async {
-    await showModalBottomSheet<void>(
+  void _openApproveScreen() {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      context.push('/trip/momo/approve');
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ApproveReceiptScreen(
+            tripId: widget.tripId,
+            reviewerId: widget.memberId,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openDepositSheet({
+    required MoMoFundConfig? fundConfig,
+    required SavingPlan? memberPlan,
+  }) async {
+    final nextInstallment = (memberPlan?.completedInstallments ?? 0) + 1;
+    final totalInstallments = memberPlan?.totalInstallments ?? 0;
+    final cycleLabel = totalInstallments > 0
+        ? 'Kỳ $nextInstallment/$totalInstallments'
+        : 'Kỳ hiện tại';
+    final amount = (memberPlan != null && memberPlan.installmentAmount > 0)
+        ? memberPlan.installmentAmount
+        : 212000.0;
+
+    await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DepositReceiptSheet(
-        fundName: currentConfig?.fundName ?? _fundName,
-        momoLink: currentConfig?.momoFundDeeplink ?? MockTripData.momoFundLink,
-        phoneNumber: currentConfig?.momoPhoneNumber,
-        qrData: currentConfig?.qrCodeUrl,
+        tripId: widget.tripId,
+        memberId: widget.memberId,
+        memberName: memberPlan?.memberName ?? widget.memberName,
+        fundName: fundConfig?.fundName ?? 'Quỹ nhóm MoMo',
+        amount: amount,
+        installmentIndex: nextInstallment,
+        cycleLabel: cycleLabel,
+        momoLink: fundConfig?.momoFundDeeplink,
+        phoneNumber: fundConfig?.momoPhoneNumber,
+        qrData: fundConfig?.qrCodeUrl,
       ),
     );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  (String, AppBadgeTone) _memberCycleBadge(List<DepositRecord> memberDeposits) {
+    if (memberDeposits.isEmpty) {
+      return ('Chưa nộp', AppBadgeTone.neutral);
+    }
+    final latest = memberDeposits.first;
+    return switch (latest.status) {
+      DepositStatus.approved => ('Đã xác nhận', AppBadgeTone.mint),
+      DepositStatus.pending => ('Chờ duyệt', AppBadgeTone.amber),
+      DepositStatus.rejected => ('Bị từ chối', AppBadgeTone.error),
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final fundConfigAsync = ref.watch(momoFundStreamProvider(widget.tripId));
-    final fundConfig = fundConfigAsync.value;
-    final isLinked = fundConfig != null || _isLinked;
-    final fundName = fundConfig?.fundName ?? _fundName;
+    final memberPlanAsync = ref.watch(
+      savingPlanProvider(SavingPlanParams(tripId: widget.tripId, memberId: widget.memberId)),
+    );
+    final depositsAsync = ref.watch(tripDepositsStreamProvider(widget.tripId));
+    final plansAsync = ref.watch(tripSavingPlansStreamProvider(widget.tripId));
+    final streaksAsync = ref.watch(tripStreaksStreamProvider(widget.tripId));
 
-    final progress =
-        (MockTripData.currentSavedFund / MockTripData.totalTargetFund).clamp(0.0, 1.0);
+    final fundConfig = fundConfigAsync.value;
+    final memberPlan = memberPlanAsync.value;
+    final deposits = depositsAsync.value ?? const <DepositRecord>[];
+    final plans = List<SavingPlan>.from(plansAsync.value ?? const <SavingPlan>[]);
+    final streaks = streaksAsync.value ?? const <MemberStreak>[];
+
+    final isLinked = fundConfig != null &&
+        (fundConfig.momoPhoneNumber.isNotEmpty ||
+            (fundConfig.momoFundDeeplink?.isNotEmpty ?? false) ||
+            (fundConfig.qrCodeUrl?.isNotEmpty ?? false));
+    final fundName = fundConfig?.fundName ?? 'Quỹ nhóm MoMo';
+    final isHost = widget.isHost ?? (fundConfig == null || fundConfig.hostUserId == widget.memberId);
+
     final pendingCount =
-        MockTripData.receiptRequests.where((r) => r.status == 'pending').length;
+        deposits.where((r) => r.status == DepositStatus.pending).length;
+
+    final totalPlanTarget = plans.fold<double>(0.0, (sum, p) => sum + p.targetAmount);
+    final totalPlanPaid = plans.fold<double>(0.0, (sum, p) => sum + p.paidAmount);
+    final collectedAmount = fundConfig?.currentCollectedAmount ?? totalPlanPaid;
+    final targetAmount = (fundConfig != null && fundConfig.targetTotalAmount > 0)
+        ? fundConfig.targetTotalAmount
+        : totalPlanTarget;
+    final memberCount = plans.isNotEmpty ? plans.length : 1;
+
+    final cycleLabel = (memberPlan != null && memberPlan.totalInstallments > 0)
+        ? 'Kỳ hiện tại (Kỳ ${memberPlan.completedInstallments + 1}/${memberPlan.totalInstallments})'
+        : 'Kỳ hiện tại';
+    final installmentText = (memberPlan != null && memberPlan.installmentAmount > 0)
+        ? '${MoMoDeeplinkHelper.formatVnd(memberPlan.installmentAmount.round())} / kỳ'
+        : 'Chạm Nộp biên lai để đóng quỹ';
+
+    final streakByMember = {for (final s in streaks) s.memberId: s};
+    plans.sort((a, b) {
+      final ratioA = a.targetAmount > 0 ? a.paidAmount / a.targetAmount : 0.0;
+      final ratioB = b.targetAmount > 0 ? b.paidAmount / b.targetAmount : 0.0;
+      final cmp = ratioB.compareTo(ratioA);
+      if (cmp != 0) return cmp;
+      return b.paidAmount.compareTo(a.paidAmount);
+    });
 
     return Scaffold(
       appBar: AppBar(
         leadingWidth: 100,
         leading: TextButton.icon(
-          onPressed: () => context.go('/trips'),
+          onPressed: () {
+            if (GoRouter.maybeOf(context) != null) {
+              context.go('/trips');
+            } else {
+              Navigator.of(context).maybePop();
+            }
+          },
           icon: const Icon(Icons.chevron_left, color: AppColors.onPrimaryContainer),
           label: const Text('Chuyến đi', style: TextStyle(color: AppColors.onPrimaryContainer)),
         ),
@@ -153,7 +283,9 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
                           ),
                           const SizedBox(height: 3),
                           AppStatusBadge(
-                            label: isLinked ? 'Đã liên kết Quỹ nhóm MoMo' : 'Cần Trưởng nhóm gắn link/QR',
+                            label: isLinked
+                                ? 'Đã liên kết Quỹ nhóm MoMo'
+                                : 'Cần Trưởng nhóm gắn link/QR',
                             tone: isLinked ? AppBadgeTone.mint : AppBadgeTone.amber,
                             icon: isLinked ? Icons.verified : Icons.link_off,
                           ),
@@ -176,21 +308,10 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
                         icon: isLinked ? Icons.open_in_new : Icons.qr_code_scanner,
                         backgroundColor: AppColors.momo,
                         onPressed: isLinked
-                            ? () {
-                                final effectiveConfig = fundConfig ??
-                                    MoMoFundConfig(
-                                      tripId: widget.tripId,
-                                      fundName: fundName,
-                                      hostUserId: 'host_01',
-                                      hostName: 'Trưởng nhóm',
-                                      momoPhoneNumber: '',
-                                      momoFundDeeplink: MockTripData.momoFundLink,
-                                      qrCodeUrl: MockTripData.momoFundLink,
-                                      targetTotalAmount: MockTripData.totalTargetFund.toDouble(),
-                                      updatedAt: DateTime.now(),
-                                    );
-                                _openPaymentScreen(effectiveConfig);
-                              }
+                            ? () => _openPaymentScreen(
+                                  fundConfig,
+                                  suggestedAmount: memberPlan?.installmentAmount,
+                                )
                             : () => _openSetupMoMoSheet(fundConfig),
                       ),
                     ),
@@ -202,9 +323,9 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
           const SizedBox(height: 16),
 
           // 2. Banner Hàng đợi duyệt biên lai (chỉ hiện với Trưởng nhóm / Fund Host)
-          if (pendingCount > 0) ...[
+          if (isHost && pendingCount > 0) ...[
             GestureDetector(
-              onTap: () => context.push('/trip/momo/approve'),
+              onTap: _openApproveScreen,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
@@ -235,77 +356,15 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
           ],
 
           // 3. Thẻ Tiến độ Gây dựng Quỹ & Kỳ đóng quỹ hiện tại
-          AppInsetCard(
-            borderRadius: 16,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Tiến độ Quỹ tích lũy',
-                      style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
-                    ),
-                    Text(
-                      '${(progress * 100).round()}%',
-                      style: AppTheme.monoAmount(fontSize: 15, color: AppColors.onMintContainer),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  MockTripData.formatVnd(MockTripData.currentSavedFund),
-                  style: AppTheme.monoAmount(fontSize: 28, fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  'Mục tiêu: ${MockTripData.formatVnd(MockTripData.totalTargetFund)} (4 thành viên)',
-                  style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 8,
-                    backgroundColor: AppColors.surfaceContainerHigh,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.mint),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Divider(),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Kỳ hiện tại (${MockTripData.currentCycleLabel})',
-                          style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          '212.000đ • Hạn ${MockTripData.currentCycleDue}',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _openDepositSheet(fundConfig),
-                      icon: const Icon(Icons.upload_file, size: 17),
-                      label: const Text('Nộp biên lai'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primaryContainer,
-                        foregroundColor: AppColors.onPrimaryContainer,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          FundProgressCard(
+            collectedAmount: collectedAmount,
+            targetAmount: targetAmount,
+            memberCount: memberCount,
+            cycleLabel: cycleLabel,
+            installmentText: installmentText,
+            onDepositPressed: () => _openDepositSheet(
+              fundConfig: fundConfig,
+              memberPlan: memberPlan,
             ),
           ),
           const SizedBox(height: 24),
@@ -317,57 +376,80 @@ class _MomoFundScreenState extends ConsumerState<MomoFundScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 5. Tiến độ đóng góp từng thành viên
+          // 5. Bảng xếp hạng & Tiến độ đóng góp từng thành viên
           AppSectionHeader(
-            title: 'Tiến độ thành viên (${MockTripData.currentCycleLabel})',
-            trailing: GestureDetector(
-              onTap: () => context.push('/trip/momo/approve'),
-              child: const Text(
-                'Duyệt biên lai',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.onPrimaryContainer,
-                ),
-              ),
-            ),
+            title: 'Bảng xếp hạng đóng góp',
+            trailing: isHost
+                ? GestureDetector(
+                    onTap: _openApproveScreen,
+                    child: const Text(
+                      'Duyệt biên lai',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.onPrimaryContainer,
+                      ),
+                    ),
+                  )
+                : null,
           ),
           AppInsetCard(
-            child: Column(
-              children: List.generate(MockTripData.members.length, (idx) {
-                final m = MockTripData.members[idx];
-                final (badgeText, tone) = switch (m.currentCycleStatus) {
-                  'confirmed' => ('Đã xác nhận', AppBadgeTone.mint),
-                  'pending' => ('Chờ duyệt', AppBadgeTone.amber),
-                  _ => ('Chưa đóng', AppBadgeTone.error),
-                };
-                return Column(
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.surfaceContainerHigh,
-                        child: Text(
-                          m.initials,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
+            child: plans.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(
+                      child: Text(
+                        'Chưa có thành viên nào tạo kế hoạch tích góp.',
+                        style: TextStyle(color: AppColors.onSurfaceVariant),
                       ),
-                      title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                      subtitle: Text(
-                        '${MockTripData.formatVnd(m.contributedAmount)} / ${MockTripData.formatVnd(m.targetAmount)} • 🔥${m.streakWeeks}',
-                        style: AppTheme.monoAmount(fontSize: 12, color: AppColors.onSurfaceVariant),
-                      ),
-                      trailing: AppStatusBadge(label: badgeText, tone: tone),
                     ),
-                    if (idx < MockTripData.members.length - 1) const Divider(indent: 72),
-                  ],
-                );
-              }),
-            ),
+                  )
+                : Column(
+                    children: List.generate(plans.length, (idx) {
+                      final plan = plans[idx];
+                      final memberDeposits =
+                          deposits.where((d) => d.memberId == plan.memberId).toList();
+                      final (badgeText, tone) = _memberCycleBadge(memberDeposits);
+                      final streakCount = streakByMember[plan.memberId]?.currentStreak ?? 0;
+
+                      return Column(
+                        children: [
+                          ListTile(
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            leading: CircleAvatar(
+                              backgroundColor: idx == 0
+                                  ? AppColors.amberContainer
+                                  : AppColors.surfaceContainerHigh,
+                              child: Text(
+                                _initials(plan.memberName),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: idx == 0
+                                      ? AppColors.onAmberContainer
+                                      : AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              '${idx + 1}. ${plan.memberName}',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            subtitle: Text(
+                              '${MoMoDeeplinkHelper.formatVnd(plan.paidAmount.round())} / ${MoMoDeeplinkHelper.formatVnd(plan.targetAmount.round())} • 🔥$streakCount',
+                              style: AppTheme.monoAmount(
+                                fontSize: 12,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                            trailing: AppStatusBadge(label: badgeText, tone: tone),
+                          ),
+                          if (idx < plans.length - 1) const Divider(indent: 72),
+                        ],
+                      );
+                    }),
+                  ),
           ),
         ],
       ),

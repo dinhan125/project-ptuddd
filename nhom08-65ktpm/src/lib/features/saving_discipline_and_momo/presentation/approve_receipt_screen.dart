@@ -1,109 +1,257 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/data/mock_trip_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_segmented_control.dart';
 import '../../../core/widgets/app_status_badge.dart';
+import '../models/deposit_record.dart';
+import '../providers/receipt_approval_provider.dart';
+import '../utils/momo_deeplink_helper.dart';
+import 'widgets/module_provider_scope.dart';
 
 /// Màn hình Duyệt Biên Lai Nạp Quỹ (Dành cho Trưởng nhóm / Fund Host).
-class ApproveReceiptScreen extends StatefulWidget {
-  const ApproveReceiptScreen({super.key});
+class ApproveReceiptScreen extends StatelessWidget {
+  const ApproveReceiptScreen({
+    super.key,
+    this.tripId = 'trip_demo_01',
+    this.reviewerId = 'member_demo_01',
+  });
+
+  final String tripId;
+  final String reviewerId;
 
   @override
-  State<ApproveReceiptScreen> createState() => _ApproveReceiptScreenState();
-}
-
-class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
-  int _filterIndex = 0; // 0: Chờ duyệt | 1: Đã duyệt | 2: Từ chối
-  late final Map<String, String> _statusOverrides;
-
-  @override
-  void initState() {
-    super.initState();
-    _statusOverrides = {
-      for (final r in MockTripData.receiptRequests) r.id: r.status,
-    };
-  }
-
-  void _approve(MockReceiptRequest req) {
-    // TODO(Module 2): Cập nhật Firestore (status = approved, cộng quỹ & cộng Streak)
-    setState(() => _statusOverrides[req.id] = 'approved');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã xác nhận biên lai của ${req.memberName} (+212.000đ)')),
-    );
-  }
-
-  Future<void> _rejectWithReason(MockReceiptRequest req) async {
-    final reasonCtrl = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Từ chối biên lai'),
-        content: TextField(
-          controller: reasonCtrl,
-          decoration: const InputDecoration(
-            hintText: 'Nhập lý do (VD: Ảnh mờ, thiếu mã giao dịch...)',
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Từ chối'),
-          ),
-        ],
+  Widget build(BuildContext context) {
+    return ModuleProviderScope(
+      child: _ApproveReceiptContent(
+        tripId: tripId,
+        reviewerId: reviewerId,
       ),
     );
-    if (confirmed == true && mounted) {
-      setState(() => _statusOverrides[req.id] = 'rejected');
+  }
+}
+
+class _ApproveReceiptContent extends ConsumerStatefulWidget {
+  const _ApproveReceiptContent({
+    required this.tripId,
+    required this.reviewerId,
+  });
+
+  final String tripId;
+  final String reviewerId;
+
+  @override
+  ConsumerState<_ApproveReceiptContent> createState() => _ApproveReceiptContentState();
+}
+
+class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> {
+  int _filterIndex = 0; // 0: Chờ duyệt | 1: Đã duyệt | 2: Từ chối
+  final Set<String> _processingIds = <String>{};
+
+  Future<void> _approve(DepositRecord record) async {
+    if (_processingIds.contains(record.id)) return;
+    setState(() => _processingIds.add(record.id));
+    try {
+      await ref.read(receiptApprovalProvider(widget.tripId).notifier).approveDeposit(
+            depositId: record.id,
+            reviewerId: widget.reviewerId,
+          );
+      if (!mounted) return;
+      final formatted = MoMoDeeplinkHelper.formatVnd(record.amount.round());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã xác nhận biên lai của ${record.memberName} (+$formatted)')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể duyệt biên lai: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _processingIds.remove(record.id));
+      }
     }
+  }
+
+  Future<void> _rejectWithReason(DepositRecord record) async {
+    if (_processingIds.contains(record.id)) return;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => const _RejectReasonDialog(),
+    );
+
+    if (reason == null || !mounted) return;
+    setState(() => _processingIds.add(record.id));
+    try {
+      await ref.read(receiptApprovalProvider(widget.tripId).notifier).rejectDeposit(
+            depositId: record.id,
+            reviewerId: widget.reviewerId,
+            reason: reason.isEmpty ? null : reason,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã từ chối biên lai của ${record.memberName}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể từ chối biên lai: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _processingIds.remove(record.id));
+      }
+    }
+  }
+
+  void _openFullScreenViewer(DepositRecord record) {
+    final imageUrl = record.receiptImageUrl;
+    if (imageUrl == null || imageUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Giao dịch này chưa đính kèm ảnh biên lai.')),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: _ReceiptImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  placeholderSize: 96,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              left: 16,
+              right: 16,
+              child: SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${record.memberName} • ${MoMoDeeplinkHelper.formatVnd(record.amount.round())}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final h = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m • $h:$min';
   }
 
   @override
   Widget build(BuildContext context) {
+    final depositsAsync = ref.watch(tripDepositsStreamProvider(widget.tripId));
+    final allDeposits = depositsAsync.value ?? const <DepositRecord>[];
+    final pendingCount =
+        allDeposits.where((r) => r.status == DepositStatus.pending).length;
+
     final targetStatus = switch (_filterIndex) {
-      0 => 'pending',
-      1 => 'approved',
-      _ => 'rejected',
+      0 => DepositStatus.pending,
+      1 => DepositStatus.approved,
+      _ => DepositStatus.rejected,
     };
-    final list = MockTripData.receiptRequests
-        .where((r) => _statusOverrides[r.id] == targetStatus)
-        .toList();
-    final pendingCount = _statusOverrides.values.where((s) => s == 'pending').length;
+    final filteredList =
+        allDeposits.where((r) => r.status == targetStatus).toList();
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.chevron_left, color: AppColors.onPrimaryContainer, size: 28),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            final router = GoRouter.maybeOf(context);
+            if (router != null && router.canPop()) {
+              context.pop();
+            } else {
+              Navigator.of(context).maybePop();
+            }
+          },
         ),
         title: Text('Duyệt biên lai ($pendingCount)'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          AppSegmentedControl(
-            segments: ['Chờ duyệt ($pendingCount)', 'Đã duyệt', 'Từ chối'],
-            selectedIndex: _filterIndex,
-            onChanged: (i) => setState(() => _filterIndex = i),
+      body: depositsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Không thể tải danh sách biên lai: $err',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.error),
+            ),
           ),
-          const SizedBox(height: 16),
-          if (list.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 64),
-              child: Center(
-                child: Text(
-                  'Không có biên lai nào trong mục này.',
-                  style: TextStyle(color: AppColors.onSurfaceVariant),
+        ),
+        data: (_) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            AppSegmentedControl(
+              segments: ['Chờ duyệt ($pendingCount)', 'Đã duyệt', 'Từ chối'],
+              selectedIndex: _filterIndex,
+              onChanged: (i) => setState(() => _filterIndex = i),
+            ),
+            const SizedBox(height: 16),
+            if (filteredList.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 64),
+                child: Center(
+                  child: Text(
+                    'Không có biên lai nào trong mục này.',
+                    style: TextStyle(color: AppColors.onSurfaceVariant),
+                  ),
                 ),
-              ),
-            )
-          else
-            ...list.map((req) => Padding(
+              )
+            else
+              ...filteredList.map((record) {
+                final isProcessing = _processingIds.contains(record.id);
+                final cycleText = record.installmentIndex > 0
+                    ? 'Kỳ ${record.installmentIndex}'
+                    : 'Nạp quỹ';
+                return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: AppInsetCard(
                     borderRadius: 16,
@@ -116,7 +264,7 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                             CircleAvatar(
                               backgroundColor: AppColors.primaryContainer,
                               child: Text(
-                                req.memberInitials,
+                                _initials(record.memberName),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -130,14 +278,14 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    req.memberName,
+                                    record.memberName,
                                     style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   Text(
-                                    '${req.cycleLabel} • ${req.submittedAt}',
+                                    '$cycleText • ${_formatDateTime(record.depositDate)}',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.onSurfaceVariant,
@@ -147,7 +295,7 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                               ),
                             ),
                             Text(
-                              MockTripData.formatVnd(req.amount),
+                              MoMoDeeplinkHelper.formatVnd(record.amount.round()),
                               style: AppTheme.monoAmount(fontSize: 16, color: AppColors.momo),
                             ),
                           ],
@@ -155,67 +303,86 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                         const SizedBox(height: 12),
 
                         // Khung xem trước ảnh biên lai MoMo
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.outlineVariantSoft),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: AppColors.momoContainer,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _openFullScreenViewer(record),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.outlineVariantSoft),
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.receipt_long, color: AppColors.momo),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Mã GD MoMo: ${req.momoTransId}',
-                                      style: AppTheme.monoAmount(fontSize: 12),
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 56,
+                                    child: _ReceiptImage(
+                                      imageUrl: record.receiptImageUrl,
+                                      fit: BoxFit.cover,
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${req.moodEmoji} ${req.note}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Mã GD: ${record.id}',
+                                        style: AppTheme.monoAmount(fontSize: 11),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${record.emotionTag ?? '💬'} ${record.note ?? 'Không có ghi chú'}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.onSurfaceVariant,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              IconButton(
-                                tooltip: 'Phóng to biên lai',
-                                icon: const Icon(Icons.zoom_in, color: AppColors.primary),
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('TODO(Module 2): Mở hộp thoại xem ảnh biên lai gốc'),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
+                                IconButton(
+                                  tooltip: 'Phóng to biên lai',
+                                  icon: const Icon(Icons.zoom_in, color: AppColors.primary),
+                                  onPressed: () => _openFullScreenViewer(record),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
+
+                        if (record.status == DepositStatus.rejected &&
+                            record.rejectionReason != null &&
+                            record.rejectionReason!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Lý do từ chối: ${record.rejectionReason}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.onErrorContainer,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
 
-                        if (targetStatus == 'pending')
+                        if (record.status == DepositStatus.pending)
                           Row(
                             children: [
                               Expanded(
                                 child: FilledButton.tonal(
-                                  onPressed: () => _rejectWithReason(req),
+                                  onPressed:
+                                      isProcessing ? null : () => _rejectWithReason(record),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppColors.errorContainer,
                                     foregroundColor: AppColors.onErrorContainer,
@@ -229,7 +396,7 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: FilledButton(
-                                  onPressed: () => _approve(req),
+                                  onPressed: isProcessing ? null : () => _approve(record),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppColors.mint,
                                     foregroundColor: Colors.white,
@@ -237,7 +404,16 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
-                                  child: const Text('Xác nhận hợp lệ'),
+                                  child: isProcessing
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('Xác nhận hợp lệ'),
                                 ),
                               ),
                             ],
@@ -246,8 +422,10 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: AppStatusBadge(
-                              label: targetStatus == 'approved' ? 'Đã xác nhận' : 'Đã từ chối',
-                              tone: targetStatus == 'approved'
+                              label: record.status == DepositStatus.approved
+                                  ? 'Đã xác nhận'
+                                  : 'Đã từ chối',
+                              tone: record.status == DepositStatus.approved
                                   ? AppBadgeTone.mint
                                   : AppBadgeTone.error,
                             ),
@@ -255,9 +433,99 @@ class _ApproveReceiptScreenState extends State<ApproveReceiptScreen> {
                       ],
                     ),
                   ),
-                )),
-        ],
+                );
+              }),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _ReceiptImage extends StatelessWidget {
+  const _ReceiptImage({
+    required this.imageUrl,
+    required this.fit,
+    this.placeholderSize = 24,
+  });
+
+  final String? imageUrl;
+  final BoxFit fit;
+  final double placeholderSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
+    if (url == null || url.isEmpty) {
+      return Container(
+        color: AppColors.momoContainer,
+        alignment: Alignment.center,
+        child: Icon(Icons.receipt_long, color: AppColors.momo, size: placeholderSize),
+      );
+    }
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return Image.network(
+        url,
+        fit: fit,
+        errorBuilder: (_, _, _) => Container(
+          color: AppColors.momoContainer,
+          alignment: Alignment.center,
+          child: Icon(Icons.broken_image_outlined, color: AppColors.momo, size: placeholderSize),
+        ),
+      );
+    }
+
+    final file = File(url);
+    if (file.existsSync()) {
+      return Image.file(file, fit: fit);
+    }
+
+    return Container(
+      color: AppColors.momoContainer,
+      alignment: Alignment.center,
+      child: Icon(Icons.receipt_long, color: AppColors.momo, size: placeholderSize),
+    );
+  }
+}
+
+class _RejectReasonDialog extends StatefulWidget {
+  const _RejectReasonDialog();
+
+  @override
+  State<_RejectReasonDialog> createState() => _RejectReasonDialogState();
+}
+
+class _RejectReasonDialogState extends State<_RejectReasonDialog> {
+  final _reasonCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Từ chối biên lai'),
+      content: TextField(
+        controller: _reasonCtrl,
+        decoration: const InputDecoration(
+          hintText: 'Nhập lý do (VD: Ảnh mờ, thiếu mã giao dịch...)',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          onPressed: () => Navigator.pop(context, _reasonCtrl.text.trim()),
+          child: const Text('Từ chối'),
+        ),
+      ],
     );
   }
 }

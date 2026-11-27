@@ -10,6 +10,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_section_header.dart';
+import '../../../models/trip_model.dart';
+import '../../goal_and_checklist/data/smart_templates.dart';
+import '../../goal_and_checklist/providers/checklist_providers.dart';
 import '../providers/trip_providers.dart';
 import '../repository/trip_repository.dart';
 
@@ -33,6 +36,9 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
   late final String _inviteCode = TripRepository.generateInviteCode();
   Uint8List? _coverBytes;
   bool _copied = false;
+  TripType _tripType = TripType.other;
+  bool _autoApplyTemplate = true;
+  String? _validationError;
 
   @override
   void initState() {
@@ -66,9 +72,9 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
       setState(() => _coverBytes = bytes);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không chọn được ảnh: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không chọn được ảnh: $e')));
     }
   }
 
@@ -107,27 +113,45 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
   Future<void> _saveTrip() async {
     final title = _nameCtrl.text.trim();
     final destination = _destCtrl.text.trim();
-    final targetBudget = AppFormatters.parseVnd(_budgetCtrl.text);
+    final targetBudget = AppFormatters.parseSignedVnd(_budgetCtrl.text);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startDay = DateTime(
+      _startDate.year,
+      _startDate.month,
+      _startDate.day,
+    );
+    final endDay = DateTime(_endDate.year, _endDate.month, _endDate.day);
 
+    String? error;
     if (title.isEmpty || destination.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập Tên và Địa điểm chuyến đi.')),
-      );
-      return;
-    }
-    if (targetBudget <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mục tiêu quỹ phải lớn hơn 0đ.')),
-      );
-      return;
+      error = 'Vui lòng nhập Tên và Địa điểm chuyến đi.';
+    } else if (startDay.isBefore(today)) {
+      error = 'Ngày khởi hành không được ở trong quá khứ.';
+    } else if (endDay.isBefore(startDay)) {
+      error = 'Ngày về phải lớn hơn hoặc bằng ngày khởi hành.';
+    } else if (targetBudget <= 0) {
+      error = 'Mục tiêu quỹ phải là số dương lớn hơn 0đ.';
     }
 
-    final created = await ref.read(tripControllerProvider.notifier).createTrip(
+    if (error != null) {
+      setState(() => _validationError = error);
+      _showSnackBar(error);
+      return;
+    }
+    if (_validationError != null) {
+      setState(() => _validationError = null);
+    }
+
+    final created = await ref
+        .read(tripControllerProvider.notifier)
+        .createTrip(
           title: title,
           destination: destination,
           startDate: _startDate,
           endDate: _endDate,
           targetBudget: targetBudget,
+          tripType: _tripType,
           coverImageBytes: _coverBytes,
           customInviteCode: _inviteCode,
         );
@@ -135,18 +159,31 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
 
     final state = ref.read(tripControllerProvider);
     if (state.hasError || created == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.error?.toString() ?? 'Không thể tạo chuyến đi.'),
-        ),
-      );
+      _showSnackBar(state.error?.toString() ?? 'Không thể tạo chuyến đi.');
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã tạo chuyến đi "${created.title}"!')),
+    var templateCount = 0;
+    final matchedTemplate = SmartChecklistTemplates.forTripType(_tripType);
+    if (_autoApplyTemplate && matchedTemplate != null) {
+      templateCount = await ref
+          .read(checklistControllerProvider.notifier)
+          .applyTemplate(trip: created, template: matchedTemplate);
+      if (!mounted) return;
+    }
+
+    _showSnackBar(
+      templateCount > 0
+          ? 'Đã tạo "${created.title}" và thêm $templateCount đầu việc mẫu!'
+          : 'Đã tạo chuyến đi "${created.title}"!',
     );
     context.go('/trip/checklist');
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -166,6 +203,7 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
         title: const Text('Tạo chuyến đi'),
         actions: [
           TextButton(
+            key: const Key('create_trip_save_button'),
             onPressed: isSaving ? null : _saveTrip,
             child: Text(
               isSaving ? 'Đang lưu...' : 'Lưu',
@@ -211,7 +249,10 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
                             ),
                             child: const Text(
                               'Đổi ảnh bìa',
-                              style: TextStyle(color: Colors.white, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -252,18 +293,21 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
             child: Column(
               children: [
                 _InputRow(
+                  fieldKey: const Key('create_trip_title_field'),
                   label: 'Tên',
                   controller: _nameCtrl,
                   hintText: 'VD: Đà Lạt 4N3Đ',
                 ),
                 const Divider(indent: 16),
                 _InputRow(
+                  fieldKey: const Key('create_trip_dest_field'),
                   label: 'Địa điểm',
                   controller: _destCtrl,
                   hintText: 'VD: Đà Lạt, Lâm Đồng',
                 ),
                 const Divider(indent: 16),
                 _InputRow(
+                  fieldKey: const Key('create_trip_start_date_field'),
                   label: 'Ngày đi',
                   controller: _startCtrl,
                   isMono: true,
@@ -272,6 +316,7 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
                 ),
                 const Divider(indent: 16),
                 _InputRow(
+                  fieldKey: const Key('create_trip_end_date_field'),
                   label: 'Ngày về',
                   controller: _endCtrl,
                   isMono: true,
@@ -280,15 +325,97 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
                 ),
                 const Divider(indent: 16),
                 _InputRow(
+                  fieldKey: const Key('create_trip_budget_field'),
                   label: 'Mục tiêu quỹ',
                   controller: _budgetCtrl,
                   isMono: true,
                   keyboardType: TextInputType.number,
                   valueColor: AppColors.onPrimaryContainer,
                 ),
+                const Divider(indent: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('Loại hình', style: TextStyle(fontSize: 16)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<TripType>(
+                          key: const Key('create_trip_type_dropdown'),
+                          initialValue: _tripType,
+                          isExpanded: true,
+                          alignment: AlignmentDirectional.centerEnd,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          items: TripType.values
+                              .map(
+                                (type) => DropdownMenuItem(
+                                  value: type,
+                                  child: Text(
+                                    type.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: isSaving
+                              ? null
+                              : (val) {
+                                  if (val != null) {
+                                    setState(() => _tripType = val);
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_tripType != TripType.other) ...[
+                  const Divider(indent: 16),
+                  SwitchListTile(
+                    key: const Key('create_trip_auto_template_switch'),
+                    value: _autoApplyTemplate,
+                    onChanged: isSaving
+                        ? null
+                        : (v) => setState(() => _autoApplyTemplate = v),
+                    title: const Text(
+                      'Tự động tạo Checklist mẫu',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Áp dụng sẵn bộ "${SmartChecklistTemplates.forTripType(_tripType)?.name ?? _tripType.label}"',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ],
               ],
             ),
           ),
+          if (_validationError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 4),
+              child: Text(
+                _validationError!,
+                key: const Key('create_trip_error_text'),
+                style: const TextStyle(
+                  color: AppColors.error,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           const SizedBox(height: 24),
 
           const AppSectionHeader(title: 'Mời thành viên'),
@@ -313,7 +440,10 @@ class _CreateTripQrScreenState extends ConsumerState<CreateTripQrScreen> {
                 const SizedBox(height: 12),
                 const Text(
                   'Mã mời nhóm',
-                  style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -388,6 +518,7 @@ class _InputRow extends StatelessWidget {
   const _InputRow({
     required this.label,
     required this.controller,
+    this.fieldKey,
     this.hintText,
     this.isMono = false,
     this.readOnly = false,
@@ -398,6 +529,7 @@ class _InputRow extends StatelessWidget {
 
   final String label;
   final TextEditingController controller;
+  final Key? fieldKey;
   final String? hintText;
   final bool isMono;
   final bool readOnly;
@@ -415,6 +547,7 @@ class _InputRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
+              key: fieldKey,
               controller: controller,
               readOnly: readOnly,
               onTap: onTap,

@@ -118,16 +118,19 @@ class _TripListScreenState extends ConsumerState<TripListScreen> {
         title: const Text('Chuyến đi'),
         actions: [
           IconButton(
+            key: const Key('trip_list_qr_button'),
             tooltip: 'Quét QR tham gia nhóm',
             icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary),
             onPressed: _openJoinQrSheet,
           ),
           IconButton(
+            key: const Key('trip_list_add_button'),
             tooltip: 'Tạo chuyến đi mới',
             icon: const Icon(Icons.add, color: AppColors.primary, size: 26),
             onPressed: () => context.push('/trips/create'),
           ),
           IconButton(
+            key: const Key('trip_list_logout_button'),
             tooltip: 'Đăng xuất',
             icon: const Icon(Icons.logout, color: AppColors.onSurfaceVariant, size: 21),
             onPressed: _handleSignOut,

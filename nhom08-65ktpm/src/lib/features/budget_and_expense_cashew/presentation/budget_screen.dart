@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_status_badge.dart';
+import '../utils/debt_simplifier.dart';
 
 /// Tab 4 — Ngân sách Cashew & Quyết toán (Module 4):
 /// Nâng cấp từ Stitch (qu_nh_m_c_ng_n_l_t_4n3), bổ sung Hũ ngân sách Cashew,
@@ -19,14 +20,46 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
-  bool _debt1Paid = false;
+  final Set<String> _paidKeys = <String>{};
+  late List<SimplifiedSettlement> _settlements = _computeMockSettlements();
 
-  Future<void> _confirmPayDebt() async {
+  List<SimplifiedSettlement> _computeMockSettlements() {
+    final paidByName = <String, int>{
+      for (final m in MockTripData.members) m.name: 0,
+    };
+    for (final ex in MockTripData.expenses) {
+      paidByName[ex.payerName] = (paidByName[ex.payerName] ?? 0) + ex.amount;
+    }
+    return DebtSimplifier.simplifyEqualSplit(
+      MockTripData.members
+          .map(
+            (m) => MemberExpenseContribution(
+              memberId: m.id,
+              memberName: m.name,
+              paidAmount: paidByName[m.name] ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  void _recalculateSettlements() {
+    setState(() => _settlements = _computeMockSettlements());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã chốt ${_settlements.length} giao dịch thanh toán tối giản.'),
+      ),
+    );
+  }
+
+  Future<void> _confirmPayDebt(SimplifiedSettlement s) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận đã thanh toán'),
-        content: const Text('Xác nhận Nguyễn Xuân Bình đã chuyển 350.000đ cho Đỗ Đình An?'),
+        content: Text(
+          'Xác nhận ${s.fromName} đã chuyển ${MockTripData.formatVnd(s.amount)} cho ${s.toName}?',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xác nhận')),
@@ -34,7 +67,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       ),
     );
     if (ok == true && mounted) {
-      setState(() => _debt1Paid = true);
+      setState(() => _paidKeys.add('${s.fromId}_${s.toId}'));
     }
   }
 
@@ -53,6 +86,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         title: const Text('Ngân sách'),
         actions: [
           IconButton(
+            key: const Key('budget_add_expense_button'),
             tooltip: 'Thêm hóa đơn / Quét OCR',
             icon: const Icon(Icons.add, color: AppColors.primary, size: 26),
             onPressed: () => context.push('/trip/budget/add'),
@@ -161,40 +195,61 @@ class _BudgetScreenState extends State<BudgetScreen> {
           const SizedBox(height: 24),
 
           // 3. Thanh toán tối giản (có xác nhận an toàn)
-          const AppSectionHeader(title: 'Thanh toán tối giản'),
+          AppSectionHeader(
+            title: 'Thanh toán tối giản',
+            trailing: TextButton(
+              key: const Key('budget_simplify_debt_button'),
+              onPressed: _recalculateSettlements,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: const Text('Chốt quyết toán'),
+            ),
+          ),
           AppInsetCard(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Nguyễn Xuân Bình trả Đỗ Đình An'),
-                  subtitle: _debt1Paid
-                      ? const Text(
-                          'Đã thanh toán',
-                          style: TextStyle(color: AppColors.onMintContainer),
-                        )
-                      : GestureDetector(
-                          onTap: _confirmPayDebt,
-                          child: const Text(
-                            'Xác nhận đã trả',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.onPrimaryContainer,
+            child: _settlements.isEmpty
+                ? const ListTile(
+                    title: Text('Mọi thành viên đã cân bằng công nợ.'),
+                  )
+                : Column(
+                    children: List.generate(_settlements.length, (idx) {
+                      final s = _settlements[idx];
+                      final paid = _paidKeys.contains('${s.fromId}_${s.toId}');
+                      return Column(
+                        children: [
+                          ListTile(
+                            title: Text('${s.fromName} trả ${s.toName}'),
+                            subtitle: paid
+                                ? const AppStatusBadge(
+                                    label: 'Đã thanh toán',
+                                    tone: AppBadgeTone.mint,
+                                  )
+                                : GestureDetector(
+                                    onTap: () => _confirmPayDebt(s),
+                                    child: const Text(
+                                      'Xác nhận đã trả',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                            trailing: Text(
+                              MockTripData.formatVnd(s.amount),
+                              style: AppTheme.monoAmount(
+                                color: paid
+                                    ? AppColors.onSurfaceVariant
+                                    : AppColors.onSurface,
+                              ),
                             ),
                           ),
-                        ),
-                  trailing: Text('350.000đ', style: AppTheme.monoAmount()),
-                ),
-                const Divider(indent: 16),
-                ListTile(
-                  title: const Text('Đỗ Tùng Khánh trả Đỗ Đình An'),
-                  subtitle: const AppStatusBadge(label: 'Đã thanh toán', tone: AppBadgeTone.mint),
-                  trailing: Text(
-                    '330.000đ',
-                    style: AppTheme.monoAmount(color: AppColors.onSurfaceVariant),
+                          if (idx < _settlements.length - 1)
+                            const Divider(indent: 16),
+                        ],
+                      );
+                    }),
                   ),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 24),
 

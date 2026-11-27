@@ -73,6 +73,7 @@ class ItineraryScreen extends ConsumerWidget {
           ),
           if (conflicts.isNotEmpty)
             const Card(
+              key: Key('itinerary_conflict_banner'),
               margin: EdgeInsets.all(12),
               color: Color(0xfffff3cd),
               child: ListTile(
@@ -139,6 +140,8 @@ class ItineraryScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: const Key('itinerary_add_fab'),
+        heroTag: 'itinerary_fab',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => AddActivityScreen(tripId: tripId)),

@@ -60,21 +60,25 @@ class TripShellScaffold extends StatelessWidget {
               },
               destinations: const [
                 NavigationDestination(
+                  key: Key('nav_tab_checklist'),
                   icon: Icon(Icons.checklist_outlined),
                   selectedIcon: Icon(Icons.checklist),
                   label: 'Chuẩn bị',
                 ),
                 NavigationDestination(
+                  key: Key('nav_tab_momo'),
                   icon: Icon(Icons.savings_outlined),
                   selectedIcon: Icon(Icons.savings),
                   label: 'Quỹ MoMo',
                 ),
                 NavigationDestination(
+                  key: Key('nav_tab_itinerary'),
                   icon: Icon(Icons.calendar_month_outlined),
                   selectedIcon: Icon(Icons.calendar_month),
                   label: 'Lịch trình',
                 ),
                 NavigationDestination(
+                  key: Key('nav_tab_budget'),
                   icon: Icon(Icons.account_balance_wallet_outlined),
                   selectedIcon: Icon(Icons.account_balance_wallet),
                   label: 'Ngân sách',

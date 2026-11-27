@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_segmented_control.dart';
+import '../utils/cashew_calculator.dart';
 
 /// Màn hình Thêm hóa đơn mới — nâng cấp từ Stitch (th_m_h_a_n_m_i):
 /// Bổ sung nút Quét hóa đơn Camera OCR (ML Kit) và thanh phím máy tính nhanh kiểu Cashew.
@@ -31,7 +32,40 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
     super.dispose();
   }
 
-  int get _parsedAmount => int.tryParse(_amountCtrl.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
+  int get _parsedAmount {
+    final evaluated = CashewCalculator.evaluate(_amountCtrl.text);
+    if (evaluated != null && evaluated >= 0) {
+      return evaluated.round();
+    }
+    return int.tryParse(_amountCtrl.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
+  }
+
+  void _onKeypadTap(String op) {
+    if (op == '+50k' || op == '+100k') {
+      final delta = op == '+50k' ? 50000 : 100000;
+      setState(() => _amountCtrl.text = '${_parsedAmount + delta}');
+      return;
+    }
+    if (op == '=') {
+      final evaluated = CashewCalculator.evaluate(_amountCtrl.text);
+      if (evaluated == null || evaluated < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biểu thức tính tiền không hợp lệ hoặc chia cho 0.'),
+          ),
+        );
+        return;
+      }
+      setState(() => _amountCtrl.text = evaluated.round().toString());
+      return;
+    }
+    setState(() {
+      _amountCtrl.text = CashewCalculator.appendOperator(_amountCtrl.text, op);
+      _amountCtrl.selection = TextSelection.collapsed(
+        offset: _amountCtrl.text.length,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +82,7 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
         title: const Text('Thêm hóa đơn'),
         actions: [
           TextButton(
+            key: const Key('cashew_save_button'),
             onPressed: () {
               // TODO(Module 4): Lưu Expense vào Firestore & cập nhật Hũ ngân sách
               context.pop();
@@ -98,8 +133,9 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                   style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
                 ),
                 TextField(
+                  key: const Key('cashew_amount_field'),
                   controller: _amountCtrl,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.text,
                   textAlign: TextAlign.center,
                   onChanged: (_) => setState(() {}),
                   style: AppTheme.monoAmount(fontSize: 30, fontWeight: FontWeight.w700),
@@ -108,20 +144,19 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                 const Divider(),
                 const SizedBox(height: 8),
                 // Thanh phép tính nhanh Cashew
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: ['+', '−', '×', '÷', '+50k', '+100k']
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: ['+', '−', '×', '÷', '=', '+50k', '+100k']
                       .map((op) => ActionChip(
+                            key: Key('cashew_key_$op'),
                             label: Text(op),
-                            backgroundColor: AppColors.surfaceContainerLow,
+                            backgroundColor: op == '='
+                                ? AppColors.primaryContainer
+                                : AppColors.surfaceContainerLow,
                             side: const BorderSide(color: AppColors.outlineVariantSoft),
-                            onPressed: () {
-                              if (op == '+50k') {
-                                setState(() => _amountCtrl.text = '${_parsedAmount + 50000}');
-                              } else if (op == '+100k') {
-                                setState(() => _amountCtrl.text = '${_parsedAmount + 100000}');
-                              }
-                            },
+                            onPressed: () => _onKeypadTap(op),
                           ))
                       .toList(),
                 ),

@@ -20,6 +20,14 @@ abstract final class AppFormatters {
     return int.tryParse(digits) ?? 0;
   }
 
+  /// Parses VND while preserving a leading `-` sign so negative inputs stay invalid.
+  static int parseSignedVnd(String input) {
+    final trimmed = input.trim();
+    final isNegative = trimmed.startsWith('-');
+    final value = parseVnd(trimmed);
+    return isNegative ? -value : value;
+  }
+
   static String formatDate(DateTime date) {
     final dd = date.day.toString().padLeft(2, '0');
     final mm = date.month.toString().padLeft(2, '0');

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'saving_plan.dart';
+
 enum DepositStatus { pending, approved, rejected }
 
 class DepositRecord {
@@ -16,6 +18,9 @@ class DepositRecord {
   final DateTime? approvedAt;
   final String? note;
   final String? emotionTag; // 'happy', 'excited', 'disciplined', 'coffee_cut'
+  final String? rejectionReason;
+  final DateTime? termDueDate;
+  final SavingFrequency? termFrequency;
 
   const DepositRecord({
     required this.id,
@@ -31,6 +36,9 @@ class DepositRecord {
     this.approvedAt,
     this.note,
     this.emotionTag,
+    this.rejectionReason,
+    this.termDueDate,
+    this.termFrequency,
   });
 
   factory DepositRecord.fromMap(Map<String, dynamic> map, {String? id}) {
@@ -63,6 +71,19 @@ class DepositRecord {
         status = DepositStatus.pending;
     }
 
+    final rawFreq = map['termFrequency'] as String?;
+    SavingFrequency? termFrequency;
+    if (rawFreq != null) {
+      switch (rawFreq.toLowerCase()) {
+        case 'daily':
+          termFrequency = SavingFrequency.daily;
+        case 'weekly':
+          termFrequency = SavingFrequency.weekly;
+        case 'monthly':
+          termFrequency = SavingFrequency.monthly;
+      }
+    }
+
     return DepositRecord(
       id: id ?? (map['id'] as String? ?? ''),
       tripId: map['tripId'] as String? ?? '',
@@ -77,6 +98,9 @@ class DepositRecord {
       approvedAt: parseNullableDate(map['approvedAt']),
       note: map['note'] as String?,
       emotionTag: map['emotionTag'] as String?,
+      rejectionReason: map['rejectionReason'] as String?,
+      termDueDate: parseNullableDate(map['termDueDate']),
+      termFrequency: termFrequency,
     );
   }
 
@@ -108,6 +132,9 @@ class DepositRecord {
       if (approvedAt != null) 'approvedAt': Timestamp.fromDate(approvedAt!),
       if (note != null) 'note': note,
       if (emotionTag != null) 'emotionTag': emotionTag,
+      if (rejectionReason != null) 'rejectionReason': rejectionReason,
+      if (termDueDate != null) 'termDueDate': Timestamp.fromDate(termDueDate!),
+      if (termFrequency != null) 'termFrequency': termFrequency!.name,
     };
   }
 
@@ -125,6 +152,9 @@ class DepositRecord {
     DateTime? approvedAt,
     String? note,
     String? emotionTag,
+    String? rejectionReason,
+    DateTime? termDueDate,
+    SavingFrequency? termFrequency,
   }) {
     return DepositRecord(
       id: id ?? this.id,
@@ -140,6 +170,9 @@ class DepositRecord {
       approvedAt: approvedAt ?? this.approvedAt,
       note: note ?? this.note,
       emotionTag: emotionTag ?? this.emotionTag,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      termDueDate: termDueDate ?? this.termDueDate,
+      termFrequency: termFrequency ?? this.termFrequency,
     );
   }
 }

@@ -17,18 +17,23 @@ Every agent must adhere strictly to the boundaries defined below to ensure clean
 - **ALLOWED DIRECTORY (Strict Sandbox):**
   - `C:\project-ptuddd\nhom08-65ktpm\src\lib\features\saving_discipline_and_momo/**`
   - `C:\docs/**` (for specifications and documentation export)
-- **STRICTLY PROHIBITED DIRECTORIES:**
+- **STRICTLY PROHIBITED / DO-NOT-MODIFY DIRECTORIES:**
   - Root project files: `c:\project-ptuddd\.gitignore`, `c:\project-ptuddd\README.md`.
+  - Shared core & app entrypoints (managed by Team Lead):
+    - `nhom08-65ktpm/src/lib/core/theme/` & `nhom08-65ktpm/src/lib/core/widgets/` — **Do not modify.** Reuse `AppColors`, `AppTheme`, `AppInsetCard`, `AppStatusBadge`, etc.
+    - `nhom08-65ktpm/src/lib/main.dart` & `nhom08-65ktpm/src/lib/firebase_options.dart` — **Do not modify.**
+    - `nhom08-65ktpm/src/lib/router/app_router.dart` — **Restricted.** Notify Team Lead or note in PR if new routes are needed.
   - Other feature modules:
-    - `nhom08-65ktpm/src/lib/features/goal_and_checklist/` (Module 1)
+    - `nhom08-65ktpm/src/lib/features/auth_and_group/` & `goal_and_checklist/` (Module 1)
     - `nhom08-65ktpm/src/lib/features/place_and_itinerary_planner/` (Module 3)
     - `nhom08-65ktpm/src/lib/features/budget_and_expense_cashew/` (Module 4)
   - Root documentation of other groups.
 
 ### 2.2. Git Workflow & Commit Rules
 - **Official Team Branch:** `nhom08-65ktpm`.
+- **Module Feature Branch:** Must follow `[feat/docs/fix]/nhom08-65ktpm/<branch_name>` (e.g., `feat/nhom08-65ktpm/module2-momo`). Pull latest `git pull origin nhom08-65ktpm` before branching, then open a PR for Team Lead review.
 - **Absolute Rule:** Never commit or push directly to `main` or `upstream/main`.
-- **Safe Staging Command:** Always stage only the group directory:
+- **Safe Staging Command:** Always stage only the module/group directory:
   ```bash
   git add nhom08-65ktpm/
   ```
@@ -50,10 +55,11 @@ Module 2 follows **Feature-First Clean Architecture**:
 
 ```
 saving_discipline_and_momo/
- ├── presentation/          # UI Layer (Screens & Reusable Widgets). No direct Firestore calls.
- ├── providers/             # Riverpod Notifiers (AsyncNotifier / Notifier). Bridges UI & Repository.
- ├── repository/            # Data Layer (Firestore, Firebase Storage, External hardware SDKs).
- └── utils/                 # Pure domain helper functions (Calculator, Deeplink builders).
+ ├── models/                # Existing models: saving_plan.dart, momo_fund_config.dart, deposit_record.dart, member_streak.dart
+ ├── presentation/          # UI Layer (setup_momo_sheet.dart, deposit_receipt_sheet.dart, approve_receipt_screen.dart, momo_fund_screen.dart). No direct Firestore calls.
+ ├── providers/             # Riverpod Notifiers (saving_plan_provider.dart). Bridges UI & Repository.
+ ├── repository/            # Data Layer (saving_repository_impl.dart: Firestore, Firebase Storage, External hardware SDKs).
+ └── utils/                 # Pure domain helper functions (saving_calculator.dart, Deeplink builders).
 ```
 
 ### Key Engineering Rules:
@@ -82,6 +88,9 @@ cd nhom08-65ktpm/src
 # Fetch packages
 flutter pub get
 
+# Preview full UI without backend
+flutter run -t lib/main_ui_preview.dart
+
 # Code generation (Freezed & JSON)
 dart run build_runner build --delete-conflicting-outputs
 
@@ -93,15 +102,29 @@ flutter test test/features/saving_discipline_and_momo/
 
 # Inspect Git status
 git status
+
+# Update knowledge graph after Module 2 code/doc changes (from saving_discipline_and_momo/)
+/graphify . --update
 ```
 
 ---
 
 ## 5. Standard Agent Execution Flow
 
-When tasked with implementing a feature slice:
-1. **Consult the Spec & Plan:** Review the corresponding section in [SPEC.md](file:///C:/docs/SPEC.md) and [PLAN.md](file:///C:/docs/PLAN.md).
+When tasked with wiring logic or implementing a feature slice:
+1. **Consult the Spec & Plan:** Review the corresponding section in [SPEC.md](file:///C:/docs/SPEC.md), [PLAN.md](file:///C:/docs/PLAN.md), and [huong_dan_code_logic_nhom8.md](file:///c:/project-ptuddd/nhom08-65ktpm/src/lib/features/saving_discipline_and_momo/docs/huong_dan_code_logic_nhom8.md).
 2. **State Assumptions Upfront:** Surface any ambiguity before writing code.
-3. **Execute Vertical Slice:** Implement Model ➔ Repository ➔ Notifier ➔ UI Widget strictly within `features/saving_discipline_and_momo/`.
-4. **Verify Quality:** Run `flutter analyze` to ensure 0 errors and 0 warnings.
-5. **Report Clearly:** Provide file links and verification instructions to the engineer.
+3. **4-Step Mock-to-Real-Logic Workflow:**
+   - **Repository (`repository/`):** Complete Firestore, Storage, or SDK calls, isolated from UI.
+   - **Providers (`providers/`):** Wrap repository calls with `StreamProvider` (realtime Firestore) or `AsyncNotifierProvider` (mutations).
+   - **Presentation (`presentation/`):** Convert `StatefulWidget` -> `ConsumerStatefulWidget` (or `StatelessWidget` -> `ConsumerWidget`), replace `MockTripData.*` with `ref.watch(...)` using `.when(loading: ..., error: ..., data: ...)`, and preserve existing widget trees and `core/widgets/`.
+   - **Replace `// TODO(Module 2):` Markers:** Wire `ref.read(...notifier)...` calls with loading states to prevent double-taps.
+4. **Pre-PR Verification Checklist:**
+   - All `MockTripData` dependencies removed from completed screens.
+   - No edits outside `saving_discipline_and_momo/` and no hardcoded colors (use `AppColors`).
+   - `flutter analyze` in `src/` reports **0 errors** and 0 warnings.
+   - Tested on Android emulator / physical device with real Firestore data (no crashes on empty lists or slow network).
+5. **Auto-Update Knowledge Graph (`graphify`):**
+   - After completing any code or documentation changes inside `saving_discipline_and_momo/`, automatically run an incremental graphify update (`/graphify . --update` or `graphify update` using `graphify-out/.graphify_python`) so `graphify-out/` stays in sync with the latest codebase.
+   - Keep `graphify-out/` unstaged in feature commits unless the engineer explicitly asks to commit graph outputs.
+6. **Report Clearly:** Provide file links and verification instructions to the engineer.

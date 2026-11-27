@@ -1,49 +1,233 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../../../core/data/mock_trip_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_primary_button.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_segmented_control.dart';
+import '../providers/momo_fund_provider.dart';
+import '../utils/momo_deeplink_helper.dart';
+import 'screens/momo_qr_scanner_screen.dart';
+import 'widgets/module_provider_scope.dart';
 
 /// Modal Sheet Thiết lập Kế hoạch & Liên kết Quỹ nhóm MoMo (Dành cho Trưởng nhóm).
-class SetupMomoSheet extends StatefulWidget {
-  const SetupMomoSheet({super.key, required this.initialFundName});
+class SetupMomoSheet extends StatelessWidget {
+  const SetupMomoSheet({
+    super.key,
+    required this.initialFundName,
+    this.tripId = 'trip_demo_01',
+    this.hostUserId = 'host_01',
+    this.hostName = 'Trưởng nhóm',
+    this.targetTotalAmount = 8450000,
+    this.initialPhoneNumber = '',
+    this.initialFundLink = '',
+  });
 
   final String initialFundName;
+  final String tripId;
+  final String hostUserId;
+  final String hostName;
+  final double targetTotalAmount;
+  final String initialPhoneNumber;
+  final String initialFundLink;
 
   @override
-  State<SetupMomoSheet> createState() => _SetupMomoSheetState();
+  Widget build(BuildContext context) {
+    return ModuleProviderScope(
+      child: _SetupMomoContent(
+        initialFundName: initialFundName,
+        tripId: tripId,
+        hostUserId: hostUserId,
+        hostName: hostName,
+        targetTotalAmount: targetTotalAmount,
+        initialPhoneNumber: initialPhoneNumber,
+        initialFundLink: initialFundLink,
+      ),
+    );
+  }
 }
 
-class _SetupMomoSheetState extends State<SetupMomoSheet> {
+class _SetupMomoContent extends ConsumerStatefulWidget {
+  const _SetupMomoContent({
+    required this.initialFundName,
+    required this.tripId,
+    required this.hostUserId,
+    required this.hostName,
+    required this.targetTotalAmount,
+    required this.initialPhoneNumber,
+    required this.initialFundLink,
+  });
+
+  final String initialFundName;
+  final String tripId;
+  final String hostUserId;
+  final String hostName;
+  final double targetTotalAmount;
+  final String initialPhoneNumber;
+  final String initialFundLink;
+
+  @override
+  ConsumerState<_SetupMomoContent> createState() => _SetupMomoContentState();
+}
+
+class _SetupMomoContentState extends ConsumerState<_SetupMomoContent> {
   int _cycleMode = 1; // 0: Ngày | 1: Tuần | 2: Tháng
   late final TextEditingController _fundNameCtrl;
-  final _fundLinkCtrl = TextEditingController(text: MockTripData.momoFundLink);
-  bool _hasQrImage = true;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _fundLinkCtrl;
+  String? _scannedQrPayload;
+  MoMoQrParseResult? _parsedQrResult;
+  String? _errorMessage;
+  bool _isSaving = false;
+  bool _isAnalyzingImage = false;
 
   @override
   void initState() {
     super.initState();
     _fundNameCtrl = TextEditingController(text: widget.initialFundName);
+    _phoneCtrl = TextEditingController(text: widget.initialPhoneNumber);
+    _fundLinkCtrl = TextEditingController(text: widget.initialFundLink);
   }
 
   @override
   void dispose() {
     _fundNameCtrl.dispose();
+    _phoneCtrl.dispose();
     _fundLinkCtrl.dispose();
     super.dispose();
   }
 
+  void _applyQrPayload(String rawPayload) {
+    final parsed = MoMoDeeplinkHelper.parseMoMoQr(rawPayload);
+    setState(() {
+      _scannedQrPayload = parsed.rawPayload;
+      _parsedQrResult = parsed;
+      _errorMessage = null;
+      if (parsed.phoneNumber != null && parsed.phoneNumber!.isNotEmpty) {
+        _phoneCtrl.text = parsed.phoneNumber!;
+      }
+      if (parsed.deeplink != null && parsed.deeplink!.isNotEmpty) {
+        _fundLinkCtrl.text = parsed.deeplink!;
+      }
+    });
+  }
+
+  Future<void> _scanQrCode() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const MomoQrScannerScreen()),
+    );
+    if (result != null && result.isNotEmpty && mounted) {
+      _applyQrPayload(result);
+    }
+  }
+
+  Future<void> _uploadQrImage() async {
+    if (_isAnalyzingImage) return;
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _isAnalyzingImage = true;
+      _errorMessage = null;
+    });
+
+    final controller = MobileScannerController();
+    try {
+      final capture = await controller.analyzeImage(picked.path);
+      String? decoded;
+      if (capture != null) {
+        for (final barcode in capture.barcodes) {
+          final val = barcode.rawValue?.trim();
+          if (val != null && val.isNotEmpty) {
+            decoded = val;
+            break;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      if (decoded != null) {
+        _applyQrPayload(decoded);
+      } else {
+        setState(() {
+          _errorMessage = 'Không tìm thấy mã QR MoMo hợp lệ trong ảnh đã chọn.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Không thể đọc ảnh QR: $e';
+        });
+      }
+    } finally {
+      await controller.dispose();
+      if (mounted) {
+        setState(() => _isAnalyzingImage = false);
+      }
+    }
+  }
+
+  Future<void> _saveConfig() async {
+    if (_isSaving) return;
+    final fundName = _fundNameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    final link = _fundLinkCtrl.text.trim();
+
+    if (fundName.isEmpty) {
+      setState(() => _errorMessage = 'Vui lòng nhập tên Quỹ nhóm MoMo.');
+      return;
+    }
+
+    if (phone.isNotEmpty && !MoMoDeeplinkHelper.isValidPhoneNumber(phone)) {
+      setState(() => _errorMessage = 'Số điện thoại MoMo không hợp lệ (VD: 0912345678).');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref.read(momoFundProvider(widget.tripId).notifier).saveFundConfig(
+            fundName: fundName,
+            hostUserId: widget.hostUserId,
+            hostName: widget.hostName,
+            momoPhoneNumber: phone,
+            momoFundDeeplink: link.isEmpty ? null : link,
+            qrCodeUrl: _scannedQrPayload ?? (link.isEmpty ? null : link),
+            targetTotalAmount: widget.targetTotalAmount,
+          );
+      if (mounted) {
+        Navigator.pop(context, fundName);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = 'Lỗi lưu cấu hình MoMo: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Keep autoDispose momoFundProvider alive while the setup sheet is open.
+    ref.watch(momoFundProvider(widget.tripId));
     final (cycleLabel, perMemberAmount) = switch (_cycleMode) {
       0 => ('ngày', 30200),
       1 => ('tuần', 212000),
       _ => ('tháng', 845000),
     };
+
+    final hasQr = (_scannedQrPayload?.isNotEmpty == true) ||
+        _fundLinkCtrl.text.trim().isNotEmpty;
 
     return Container(
       decoration: const BoxDecoration(
@@ -74,25 +258,32 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
                     child: const Text('Hủy', style: TextStyle(color: AppColors.onPrimaryContainer)),
                   ),
-                  const Text(
-                    'Thiết lập Quỹ MoMo',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  const Expanded(
+                    child: Text(
+                      'Thiết lập Quỹ MoMo',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      // TODO(Module 2): Lưu cấu hình SavingPlan & MoMo link lên Firestore
-                      Navigator.pop(context, _fundNameCtrl.text.trim());
-                    },
-                    child: const Text(
-                      'Lưu',
-                      style: TextStyle(
-                        color: AppColors.onPrimaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    onPressed: _isSaving ? null : _saveConfig,
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Lưu',
+                            style: TextStyle(
+                              color: AppColors.onPrimaryContainer,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -111,22 +302,26 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mức đóng đề xuất / người',
-                          style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Tổng 8.450.000đ • 4 thành viên',
-                          style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mức đóng đề xuất / người',
+                            style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Tổng 8.450.000đ • 4 thành viên',
+                            style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
-                      '${MockTripData.formatVnd(perMemberAmount)}/$cycleLabel',
+                      '${MoMoDeeplinkHelper.formatVnd(perMemberAmount)}/$cycleLabel',
                       style: AppTheme.monoAmount(fontSize: 16, color: AppColors.onPrimaryContainer),
                     ),
                   ],
@@ -153,6 +348,19 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: TextField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Số điện thoại MoMo chủ quỹ',
+                          hintText: '09xx xxx xxx',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const Divider(indent: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: TextField(
                         controller: _fundLinkCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Đường dẫn (Link) Quỹ nhóm MoMo',
@@ -169,13 +377,7 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        // TODO(Module 2): Mở mobile_scanner quét QR Quỹ nhóm MoMo
-                        setState(() => _hasQrImage = true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('TODO(Module 2): Mở Camera quét QR MoMo')),
-                        );
-                      },
+                      onPressed: _scanQrCode,
                       icon: const Icon(Icons.qr_code_scanner, size: 18, color: AppColors.momo),
                       label: const Text('Quét QR MoMo', style: TextStyle(color: AppColors.onSurface)),
                       style: OutlinedButton.styleFrom(
@@ -189,12 +391,18 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        // TODO(Module 2): Chọn ảnh QR từ thư viện
-                        setState(() => _hasQrImage = true);
-                      },
-                      icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-                      label: const Text('Tải ảnh QR', style: TextStyle(color: AppColors.onSurface)),
+                      onPressed: _isAnalyzingImage ? null : _uploadQrImage,
+                      icon: _isAnalyzingImage
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                      label: Text(
+                        _isAnalyzingImage ? 'Đang đọc...' : 'Tải ảnh QR',
+                        style: const TextStyle(color: AppColors.onSurface),
+                      ),
                       style: OutlinedButton.styleFrom(
                         backgroundColor: AppColors.surfaceContainer,
                         side: const BorderSide(color: AppColors.outlineVariantSoft),
@@ -205,25 +413,32 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                   ),
                 ],
               ),
-              if (_hasQrImage) ...[
+              if (hasQr) ...[
                 const SizedBox(height: 12),
                 AppInsetCard(
                   padding: const EdgeInsets.all(12),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.qr_code_2, size: 44, color: AppColors.momo),
-                      SizedBox(width: 12),
+                      const Icon(Icons.qr_code_2, size: 44, color: AppColors.momo),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Đã nhận diện mã QR Quỹ nhóm MoMo',
                               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                             ),
+                            const SizedBox(height: 2),
                             Text(
-                              'Ứng dụng mở MoMo qua Deeplink/QR và đối soát bằng biên lai.',
-                              style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
+                              _parsedQrResult?.displaySummary ??
+                                  (_scannedQrPayload ?? _fundLinkCtrl.text.trim()),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -233,10 +448,30 @@ class _SetupMomoSheetState extends State<SetupMomoSheet> {
                 ),
               ],
               const SizedBox(height: 18),
+              if (_errorMessage != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.amberContainer,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.amber),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.onAmberContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               AppPrimaryButton(
-                label: 'Lưu cấu hình & Liên kết MoMo',
+                label: _isSaving ? 'Đang lưu...' : 'Lưu cấu hình & Liên kết MoMo',
                 backgroundColor: AppColors.momo,
-                onPressed: () => Navigator.pop(context, _fundNameCtrl.text.trim()),
+                onPressed: _isSaving ? null : _saveConfig,
               ),
             ],
           ),

@@ -126,5 +126,36 @@ void main() {
       expect(result.schedule.first.amount, 500000.0);
       expect(result.finalInstallmentAmount, 500000.0);
     });
+
+    test('Calculates installments on remaining amount when previous plan is partially paid', () {
+      final result = SavingCalculator.calculateInstallments(
+        targetAmount: 2000000,
+        alreadyPaidAmount: 1400000,
+        startDate: DateTime(2026, 11, 1),
+        deadlineDate: DateTime(2026, 11, 11), // 10 days
+        preferredFrequency: SavingFrequency.daily,
+      );
+
+      expect(result.totalAmount, 600000);
+      expect(result.totalInstallments, 10);
+      expect(result.installmentAmount, 60000);
+      final sum = result.schedule.fold<double>(0, (acc, item) => acc + item.amount);
+      expect(sum, 600000);
+    });
+
+    test('Returns 0 installments when previous plan is already fully deposited', () {
+      final result = SavingCalculator.calculateInstallments(
+        targetAmount: 2000000,
+        alreadyPaidAmount: 2000000,
+        startDate: DateTime(2026, 11, 1),
+        deadlineDate: DateTime(2026, 11, 11),
+        preferredFrequency: SavingFrequency.daily,
+      );
+
+      expect(result.totalAmount, 0);
+      expect(result.totalInstallments, 0);
+      expect(result.installmentAmount, 0);
+      expect(result.schedule, isEmpty);
+    });
   });
 }

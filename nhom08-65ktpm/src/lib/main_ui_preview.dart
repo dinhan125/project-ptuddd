@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'router/app_router_preview.dart';
 
@@ -6,7 +7,11 @@ import 'router/app_router_preview.dart';
 /// Bạn có thể chạy bằng lệnh: flutter run -t lib/main_ui_preview.dart
 /// Hoặc gọi TravelBuddyApp() bên trong lib/main.dart sau khi Firebase.initializeApp().
 void main() {
-  runApp(const TravelBuddyApp());
+  runApp(
+    const ProviderScope(
+      child: TravelBuddyApp(),
+    ),
+  );
 }
 
 class TravelBuddyApp extends StatelessWidget {

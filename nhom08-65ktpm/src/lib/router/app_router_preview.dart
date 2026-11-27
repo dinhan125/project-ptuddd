@@ -41,7 +41,7 @@ final GoRouter appRouterPreview = GoRouter(
     ),
     GoRoute(
       path: '/trip/itinerary/add',
-      builder: (context, state) => const AddActivityScreen(),
+      builder: (context, state) => const AddActivityScreen(tripId: 'demo-trip'),
     ),
     GoRoute(
       path: '/trip/budget/add',
@@ -76,7 +76,7 @@ final GoRouter appRouterPreview = GoRouter(
           routes: [
             GoRoute(
               path: '/trip/itinerary',
-              builder: (context, state) => const ItineraryScreen(),
+              builder: (context, state) => const ItineraryScreen(tripId: 'demo-trip'),
             ),
           ],
         ),

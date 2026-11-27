@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/data/mock_trip_data.dart';
@@ -7,8 +7,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_segmented_control.dart';
 
-/// Màn hình Thêm hóa đơn mới — nâng cấp từ Stitch (th_m_h_a_n_m_i):
-/// Bổ sung nút Quét hóa đơn Camera OCR (ML Kit) và thanh phím máy tính nhanh kiểu Cashew.
+/// MÃ n hÃ¬nh ThÃªm hÃ³a Ä‘Æ¡n má»›i â€” nÃ¢ng cáº¥p tá»« Stitch (th_m_h_a_n_m_i):
+/// Bá»• sung nÃºt QuÃ©t hÃ³a Ä‘Æ¡n Camera OCR (ML Kit) vÃ  thanh phÃ­m mÃ¡y tÃ­nh nhanh kiá»ƒu Cashew.
 class AddExpenseOcrScreen extends StatefulWidget {
   const AddExpenseOcrScreen({super.key});
 
@@ -18,10 +18,10 @@ class AddExpenseOcrScreen extends StatefulWidget {
 
 class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
   final _amountCtrl = TextEditingController(text: '680000');
-  final _titleCtrl = TextEditingController(text: 'Ăn tối Lẩu Gà Lá É');
+  final _titleCtrl = TextEditingController(text: 'Ä‚n tá»‘i Láº©u GÃ  LÃ¡ Ã‰');
   int _selectedCat = 0;
-  int _splitMode = 0; // 0: Chia đều | 1: Tùy chỉnh
-  final _cats = const ['Ăn uống', 'Di chuyển', 'Lưu trú', 'Vé tham quan'];
+  int _splitMode = 0; // 0: Chia Ä‘á»u | 1: TÃ¹y chá»‰nh
+  final _cats = const ['Ä‚n uá»‘ng', 'Di chuyá»ƒn', 'LÆ°u trÃº', 'VÃ© tham quan'];
   final _checked = [true, true, true, true];
 
   @override
@@ -42,18 +42,18 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
       appBar: AppBar(
         leading: TextButton(
           onPressed: () => context.pop(),
-          child: const Text('Hủy', style: TextStyle(color: AppColors.onPrimaryContainer)),
+          child: const Text('Há»§y', style: TextStyle(color: AppColors.onPrimaryContainer)),
         ),
         leadingWidth: 68,
-        title: const Text('Thêm hóa đơn'),
+        title: const Text('ThÃªm hÃ³a Ä‘Æ¡n'),
         actions: [
           TextButton(
             onPressed: () {
-              // TODO(Module 4): Lưu Expense vào Firestore & cập nhật Hũ ngân sách
+              // TODO(Module 4): LÆ°u Expense vÃ o Firestore & cáº­p nháº­t HÅ© ngÃ¢n sÃ¡ch
               context.pop();
             },
             child: const Text(
-              'Lưu',
+              'LÆ°u',
               style: TextStyle(
                 color: AppColors.onPrimaryContainer,
                 fontWeight: FontWeight.w700,
@@ -65,19 +65,19 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Nút Quét hóa đơn tự động Camera OCR (ML Kit)
+          // NÃºt QuÃ©t hÃ³a Ä‘Æ¡n tá»± Ä‘á»™ng Camera OCR (ML Kit)
           FilledButton.tonalIcon(
             onPressed: () {
-              // TODO(Module 4): Mở Camera + google_mlkit_text_recognition bóc tách tổng tiền
+              // TODO(Module 4): Má»Ÿ Camera + google_mlkit_text_recognition bÃ³c tÃ¡ch tá»•ng tiá»n
               setState(() => _amountCtrl.text = '680000');
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('TODO(Module 4): Mở Camera OCR tự đọc tổng tiền hóa đơn'),
+                  content: Text('TODO(Module 4): Má»Ÿ Camera OCR tá»± Ä‘á»c tá»•ng tiá»n hÃ³a Ä‘Æ¡n'),
                 ),
               );
             },
             icon: const Icon(Icons.document_scanner_outlined, size: 20),
-            label: const Text('Quét hóa đơn tự động (Camera OCR)'),
+            label: const Text('QuÃ©t hÃ³a Ä‘Æ¡n tá»± Ä‘á»™ng (Camera OCR)'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryContainer,
               foregroundColor: AppColors.onPrimaryContainer,
@@ -87,14 +87,14 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Ô nhập số tiền lớn + thanh phím máy tính nhanh kiểu Cashew
+          // Ã” nháº­p sá»‘ tiá»n lá»›n + thanh phÃ­m mÃ¡y tÃ­nh nhanh kiá»ƒu Cashew
           AppInsetCard(
             borderRadius: 16,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 const Text(
-                  'Số tiền (VNĐ)',
+                  'Sá»‘ tiá»n (VNÄ)',
                   style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
                 ),
                 TextField(
@@ -107,10 +107,10 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                 ),
                 const Divider(),
                 const SizedBox(height: 8),
-                // Thanh phép tính nhanh Cashew
+                // Thanh phÃ©p tÃ­nh nhanh Cashew
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: ['+', '−', '×', '÷', '+50k', '+100k']
+                  children: ['+', 'âˆ’', 'Ã—', 'Ã·', '+50k', '+100k']
                       .map((op) => ActionChip(
                             label: Text(op),
                             backgroundColor: AppColors.surfaceContainerLow,
@@ -130,13 +130,13 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Danh mục
+          // Danh má»¥c
           SizedBox(
             height: 36,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _cats.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final active = _selectedCat == index;
                 return ChoiceChip(
@@ -157,7 +157,7 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Chi tiết khoản chi
+          // Chi tiáº¿t khoáº£n chi
           AppInsetCard(
             child: Column(
               children: [
@@ -165,7 +165,7 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Row(
                     children: [
-                      const Text('Khoản chi', style: TextStyle(fontSize: 15)),
+                      const Text('Khoáº£n chi', style: TextStyle(fontSize: 15)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
@@ -180,9 +180,9 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                 ),
                 const Divider(indent: 16),
                 const ListTile(
-                  title: Text('Người trả'),
+                  title: Text('NgÆ°á»i tráº£'),
                   trailing: Text(
-                    'Đỗ Đình An',
+                    'Äá»— ÄÃ¬nh An',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppColors.onPrimaryContainer,
@@ -194,9 +194,9 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Chia tiền 4 thành viên
+          // Chia tiá»n 4 thÃ nh viÃªn
           AppSegmentedControl(
-            segments: const ['Chia đều', 'Tùy chỉnh'],
+            segments: const ['Chia Ä‘á»u', 'TÃ¹y chá»‰nh'],
             selectedIndex: _splitMode,
             onChanged: (i) => setState(() => _splitMode = i),
           ),
@@ -209,11 +209,11 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
                   children: [
                     CheckboxListTile(
                       value: _checked[i],
-                      activeColor: AppColors.primary,
+                      activeThumbColor: AppColors.primary,
                       controlAffinity: ListTileControlAffinity.leading,
                       title: Text(m.name),
                       secondary: Text(
-                        _checked[i] ? MockTripData.formatVnd(perPerson) : '0đ',
+                        _checked[i] ? MockTripData.formatVnd(perPerson) : '0Ä‘',
                         style: AppTheme.monoAmount(fontSize: 14),
                       ),
                       onChanged: (v) => setState(() => _checked[i] = v ?? false),
@@ -229,3 +229,4 @@ class _AddExpenseOcrScreenState extends State<AddExpenseOcrScreen> {
     );
   }
 }
+

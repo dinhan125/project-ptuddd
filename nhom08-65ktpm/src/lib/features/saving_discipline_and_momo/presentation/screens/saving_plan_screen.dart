@@ -89,7 +89,7 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
     super.dispose();
   }
 
-  void _updateCalculationPreview() {
+  void _updateCalculationPreview([double alreadyPaid = 0.0]) {
     final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = double.tryParse(amountText) ?? 0.0;
 
@@ -100,6 +100,7 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
           startDate: _startDate,
           deadlineDate: _deadlineDate,
           preferredFrequency: _frequency,
+          alreadyPaidAmount: alreadyPaid,
         );
       });
     } else {
@@ -191,6 +192,17 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
           ),
         ),
         data: (existingPlan) {
+          final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+          final parsedAmount = double.tryParse(amountText) ?? 0.0;
+          final effectivePreview = (parsedAmount > 0 && _deadlineDate.isAfter(_startDate))
+              ? SavingCalculator.calculateInstallments(
+                  targetAmount: parsedAmount,
+                  startDate: _startDate,
+                  deadlineDate: _deadlineDate,
+                  preferredFrequency: _frequency,
+                  alreadyPaidAmount: existingPlan?.paidAmount ?? 0.0,
+                )
+              : _calculationPreview;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -204,10 +216,10 @@ class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
                     : 'Thiết lập kế hoạch mới',
               ),
               _buildPlanForm(),
-              if (_calculationPreview != null) ...[
+              if (effectivePreview != null) ...[
                 const SizedBox(height: 24),
                 const AppSectionHeader(title: 'Dự kiến chia kỳ đóng'),
-                _buildCalculationPreviewCard(_calculationPreview!),
+                _buildCalculationPreviewCard(effectivePreview),
               ],
               const SizedBox(height: 20),
               AppPrimaryButton(

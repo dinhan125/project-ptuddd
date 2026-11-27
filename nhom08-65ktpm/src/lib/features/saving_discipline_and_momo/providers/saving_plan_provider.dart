@@ -65,6 +65,7 @@ class SavingPlanNotifier
         startDate: startDate,
         deadlineDate: deadlineDate,
         preferredFrequency: preferredFrequency,
+        alreadyPaidAmount: existingPaid,
       );
 
       final plan = SavingPlan(

@@ -71,6 +71,7 @@ class SavingCalculator {
     required DateTime deadlineDate,
     SavingFrequency preferredFrequency = SavingFrequency.weekly,
     double roundTo = 1000.0,
+    double alreadyPaidAmount = 0.0,
   }) {
     if (targetAmount <= 0) {
       throw ArgumentError.value(targetAmount, 'targetAmount', 'Target amount must be greater than 0.');
@@ -89,6 +90,19 @@ class SavingCalculator {
       effectiveFrequency = SavingFrequency.daily;
     } else if (totalDays < 30 && preferredFrequency == SavingFrequency.monthly) {
       effectiveFrequency = SavingFrequency.weekly;
+    }
+
+    final effectivePaid = alreadyPaidAmount < 0 ? 0.0 : alreadyPaidAmount;
+    final remainingAmount = targetAmount - effectivePaid;
+    if (remainingAmount <= 0) {
+      return SavingPlanCalculationResult(
+        frequency: effectiveFrequency,
+        totalInstallments: 0,
+        installmentAmount: 0.0,
+        finalInstallmentAmount: 0.0,
+        schedule: const [],
+        totalAmount: 0.0,
+      );
     }
 
     int intervals;
@@ -114,29 +128,29 @@ class SavingCalculator {
     if (intervals == 1) {
       final item = InstallmentItem(
         index: 1,
-        amount: targetAmount,
+        amount: remainingAmount,
         dueDate: deadline,
         isAdjusted: false,
       );
       return SavingPlanCalculationResult(
         frequency: effectiveFrequency,
         totalInstallments: 1,
-        installmentAmount: targetAmount,
-        finalInstallmentAmount: targetAmount,
+        installmentAmount: remainingAmount,
+        finalInstallmentAmount: remainingAmount,
         schedule: [item],
-        totalAmount: targetAmount,
+        totalAmount: remainingAmount,
       );
     }
 
     // Base installment amount rounded to nearest roundTo
-    final rawAmountPerInterval = targetAmount / intervals;
+    final rawAmountPerInterval = remainingAmount / intervals;
     double roundedAmount = ((rawAmountPerInterval / roundTo).round() * roundTo).toDouble();
     if (roundedAmount <= 0) {
       roundedAmount = roundTo;
     }
 
     final totalForNMinus1 = roundedAmount * (intervals - 1);
-    final lastInstallmentAmount = targetAmount - totalForNMinus1;
+    final lastInstallmentAmount = remainingAmount - totalForNMinus1;
 
     final schedule = <InstallmentItem>[];
     for (int i = 1; i < intervals; i++) {
@@ -167,7 +181,7 @@ class SavingCalculator {
       installmentAmount: roundedAmount,
       finalInstallmentAmount: lastInstallmentAmount,
       schedule: schedule,
-      totalAmount: targetAmount,
+      totalAmount: remainingAmount,
     );
   }
 }

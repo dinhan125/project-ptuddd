@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/deposit_record.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/approve_receipt_screen.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/deposit_receipt_sheet.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/momo_fund_screen.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/widgets/fund_progress_card.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/in_memory_saving_repository.dart';
@@ -183,6 +184,30 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Duyệt biên lai'), findsOneWidget);
+    });
+
+    testWidgets('DepositReceiptSheet displays inline validation error inside sheet when no photo is picked', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DepositReceiptSheet(fundName: 'Quỹ Test'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Gửi Trưởng nhóm xác nhận'));
+      await tester.tap(find.text('Gửi Trưởng nhóm xác nhận'));
+      await tester.pumpAndSettle();
+
+      // Inline error rendered directly inside the sheet (not only in a hidden SnackBar behind a modal).
+      expect(
+        find.descendant(
+          of: find.byType(DepositReceiptSheet),
+          matching: find.text('Vui lòng chọn ảnh chụp biên lai giao dịch MoMo'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

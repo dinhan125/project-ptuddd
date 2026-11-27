@@ -195,4 +195,12 @@ class MoMoDeeplinkHelper {
     }
     return '${amount < 0 ? '-' : ''}${buffer.toString()}đ';
   }
+
+  /// Extracts up to two uppercase initials from a member's full name.
+  static String formatInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
+  }
 }

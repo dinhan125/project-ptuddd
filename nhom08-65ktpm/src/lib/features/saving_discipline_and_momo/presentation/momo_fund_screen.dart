@@ -14,11 +14,11 @@ import '../models/momo_fund_config.dart';
 import '../models/saving_plan.dart';
 import '../providers/momo_fund_provider.dart';
 import '../providers/receipt_approval_provider.dart';
-import '../providers/saving_plan_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
 import 'approve_receipt_screen.dart';
 import 'deposit_receipt_sheet.dart';
 import 'screens/momo_payment_screen.dart';
+import 'screens/saving_plan_screen.dart';
 import 'setup_momo_sheet.dart';
 import 'widgets/daily_you_streak_calendar.dart';
 import 'widgets/fund_progress_card.dart';
@@ -103,7 +103,9 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
 
   void _openApproveScreen() {
     final router = GoRouter.maybeOf(context);
-    if (router != null) {
+    if (router != null &&
+        widget.tripId == 'trip_demo_01' &&
+        widget.memberId == 'member_demo_01') {
       context.push('/trip/momo/approve');
     } else {
       Navigator.of(context).push(
@@ -115,6 +117,18 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         ),
       );
     }
+  }
+
+  void _openSavingPlanScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SavingPlanScreen(
+          tripId: widget.tripId,
+          memberId: widget.memberId,
+          memberName: widget.memberName,
+        ),
+      ),
+    );
   }
 
   Future<void> _openDepositSheet({
@@ -149,13 +163,6 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     );
   }
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
-  }
-
   (String, AppBadgeTone) _memberCycleBadge(List<DepositRecord> memberDeposits) {
     if (memberDeposits.isEmpty) {
       return ('Chưa nộp', AppBadgeTone.neutral);
@@ -171,17 +178,14 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
   @override
   Widget build(BuildContext context) {
     final fundConfigAsync = ref.watch(momoFundStreamProvider(widget.tripId));
-    final memberPlanAsync = ref.watch(
-      savingPlanProvider(SavingPlanParams(tripId: widget.tripId, memberId: widget.memberId)),
-    );
     final depositsAsync = ref.watch(tripDepositsStreamProvider(widget.tripId));
     final plansAsync = ref.watch(tripSavingPlansStreamProvider(widget.tripId));
     final streaksAsync = ref.watch(tripStreaksStreamProvider(widget.tripId));
 
     final fundConfig = fundConfigAsync.value;
-    final memberPlan = memberPlanAsync.value;
     final deposits = depositsAsync.value ?? const <DepositRecord>[];
     final plans = List<SavingPlan>.from(plansAsync.value ?? const <SavingPlan>[]);
+    final memberPlan = plans.where((p) => p.memberId == widget.memberId).firstOrNull;
     final streaks = streaksAsync.value ?? const <MemberStreak>[];
 
     final isLinked = fundConfig != null &&
@@ -234,6 +238,11 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         ),
         title: const Text('Quỹ MoMo'),
         actions: [
+          IconButton(
+            tooltip: 'Kế hoạch tích góp',
+            icon: const Icon(Icons.savings_outlined, color: AppColors.primary),
+            onPressed: _openSavingPlanScreen,
+          ),
           IconButton(
             tooltip: 'Thiết lập kế hoạch & Liên kết MoMo',
             icon: const Icon(Icons.settings_outlined, color: AppColors.primary),
@@ -422,7 +431,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                                   ? AppColors.amberContainer
                                   : AppColors.surfaceContainerHigh,
                               child: Text(
-                                _initials(plan.memberName),
+                                MoMoDeeplinkHelper.formatInitials(plan.memberName),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,

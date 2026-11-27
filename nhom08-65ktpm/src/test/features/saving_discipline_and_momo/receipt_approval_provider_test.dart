@@ -7,6 +7,8 @@ import 'package:travel_buddy/features/saving_discipline_and_momo/models/deposit_
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/saving_plan.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/providers/receipt_approval_provider.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/providers/saving_plan_provider.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/providers/saving_streak_provider.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/in_memory_saving_repository.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/saving_repository_impl.dart';
 
@@ -240,22 +242,26 @@ void main() {
       expect(allDeposits.single.rejectionReason, 'Thiếu mã giao dịch MoMo');
     });
 
-    test('rethrows repository failures and records AsyncError', () async {
+    test('rethrows repository failures, records AsyncError, and does not save journal entry', () async {
       final container = ProviderContainer(
         overrides: [savingRepositoryProvider.overrideWithValue(_FailingReceiptRepository())],
       );
       addTearDown(container.dispose);
 
       const tripId = 'trip_phase4_fail';
+      const params = SavingPlanParams(tripId: tripId, memberId: 'm1');
       await expectLater(
         container.read(receiptApprovalProvider(tripId).notifier).submitDeposit(
               memberId: 'm1',
               memberName: 'An',
               amount: 100000,
+              emotionTag: '🔥',
+              note: 'Thất bại không được lưu',
             ),
         throwsException,
       );
       expect(container.read(receiptApprovalProvider(tripId)).hasError, isTrue);
+      expect(container.read(savingJournalProvider(params)), isEmpty);
     });
   });
 }

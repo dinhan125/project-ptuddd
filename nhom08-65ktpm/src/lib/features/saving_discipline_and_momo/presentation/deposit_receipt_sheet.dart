@@ -99,6 +99,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
   bool _showQrFallback = false;
   bool _isSubmitting = false;
   File? _receiptImage;
+  String? _errorMessage;
 
   Future<void> _launchMoMo(String link, String copySummary) async {
     final launched = await MoMoLauncher.openMoMo(
@@ -142,26 +143,30 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
         imageQuality: 85,
       );
       if (picked != null && mounted) {
-        setState(() => _receiptImage = File(picked.path));
+        setState(() {
+          _receiptImage = File(picked.path);
+          _errorMessage = null;
+        });
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể chọn ảnh biên lai: $e')),
-      );
+      setState(() => _errorMessage = 'Không thể chọn ảnh biên lai: $e');
     }
   }
 
   Future<void> _submitReceipt() async {
     if (_isSubmitting) return;
     if (_receiptImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn ảnh chụp biên lai giao dịch MoMo')),
-      );
+      setState(() {
+        _errorMessage = 'Vui lòng chọn ảnh chụp biên lai giao dịch MoMo';
+      });
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
     try {
       await ref.read(receiptApprovalProvider(widget.tripId).notifier).submitDeposit(
             memberId: widget.memberId,
@@ -182,9 +187,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gửi biên lai thất bại: $e')),
-      );
+      setState(() => _errorMessage = 'Gửi biên lai thất bại: $e');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -471,6 +474,34 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                 ),
               ),
               const SizedBox(height: 16),
+
+              if (_errorMessage != null) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, size: 18, color: AppColors.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               AppPrimaryButton(
                 label: _isSubmitting ? 'Đang tải biên lai...' : 'Gửi Trưởng nhóm xác nhận',

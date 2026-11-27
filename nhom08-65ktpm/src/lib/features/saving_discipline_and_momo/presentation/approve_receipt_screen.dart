@@ -169,13 +169,6 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
     );
   }
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
-  }
-
   String _formatDateTime(DateTime dt) {
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
@@ -264,7 +257,7 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                             CircleAvatar(
                               backgroundColor: AppColors.primaryContainer,
                               child: Text(
-                                _initials(record.memberName),
+                                MoMoDeeplinkHelper.formatInitials(record.memberName),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,

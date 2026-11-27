@@ -86,22 +86,21 @@ class ReceiptApprovalNotifier extends AsyncNotifier<void> {
       state = const AsyncLoading();
       final result = await AsyncValue.guard(() async {
         await repository.submitDeposit(record, receiptImage: receiptImage);
+        if (emotionTag != null && emotionTag.isNotEmpty) {
+          ref
+              .read(
+                savingJournalProvider(
+                  SavingPlanParams(tripId: _tripId, memberId: memberId),
+                ).notifier,
+              )
+              .saveEntry(
+                isoDate: SavingStreakCalculator.formatIsoDate(effectiveDate),
+                emoji: emotionTag,
+                note: note ?? '',
+              );
+        }
         return record;
       });
-
-      if (emotionTag != null && emotionTag.isNotEmpty) {
-        ref
-            .read(
-              savingJournalProvider(
-                SavingPlanParams(tripId: _tripId, memberId: memberId),
-              ).notifier,
-            )
-            .saveEntry(
-              isoDate: SavingStreakCalculator.formatIsoDate(effectiveDate),
-              emoji: emotionTag,
-              note: note ?? '',
-            );
-      }
 
       if (!ref.mounted) {
         if (result.hasError) {

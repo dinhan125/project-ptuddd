@@ -1,7 +1,7 @@
 # 📊 Module 2 Progress Tracker (`saving_discipline_and_momo`)
 **Project:** Travel Buddy (PTUDDD - Group 08 - 65KTPM)  
 **Lead Engineer:** Nguyen Xuan Binh (Member #2 - 64KTPM5)  
-**Branch:** `feat/nhom08-65ktpm/receipt-approval-progress`  
+**Branch:** `feat/nhom08-65ktpm/routing-and-quality-polish`  
 
 ---
 
@@ -68,6 +68,15 @@
 - [x] `FundProgressCard` and `MomoFundScreen` render realtime progress, 100% celebration banner, and member leaderboard without `MockTripData`.
 - [x] Static analysis & unit/widget tests verified (`receipt_approval_provider_test.dart`, `phase4_widgets_test.dart`).
 
-## 🟣 Phase 5: Routing Integration & Quality Polish
-- [ ] Task 5.1: Encapsulate Module Routing Contract
-- [ ] Task 5.2: Static Analysis & Code Quality Verification
+## 🟢 Phase 5: Routing Integration & Quality Polish
+
+| Task | Description | Status | Verification / Artifacts |
+| :--- | :--- | :---: | :--- |
+| **Task 5.1** | Encapsulate Module Routing Contract | **COMPLETED** | Encapsulated `GoRouter` route constants, argument parser (`SavingRouteArgs`), and `savingModuleRoutes()` for all Module 2 screens/sheets without modifying restricted `app_router.dart`: <br>- `presentation/routes.dart`<br>- `test/features/saving_discipline_and_momo/saving_routes_test.dart` |
+| **Task 5.2** | Static Analysis & Code Quality Verification | **COMPLETED** | Fixed all review findings (journal guard on failed deposit upload, Firestore plan completion status, live `memberPlan` stream, inline deposit error banner, non-default `tripId` routing, shared `MoMoDeeplinkHelper.formatInitials`, and `SavingPlanScreen` entry button from `MomoFundScreen`) and verified static analysis + full test suite. |
+
+### 🎯 Checkpoint 5 Status: Passed ✅
+- [x] `SavingRoutes` & `savingModuleRoutes()` expose `/trip/momo`, `/saving-plan`, `/momo-deposit`, `/streak-calendar`, `/momo-config`, `/pending-receipts`, and `/trip/momo/approve`.
+- [x] `MomoFundScreen` uses live stream state, preserves dynamic `tripId`/`memberId` navigation, and links to `SavingPlanScreen`.
+- [x] Static analysis (`flutter analyze`) reports 0 errors and 0 warnings across `lib/features/saving_discipline_and_momo` and `test/features/saving_discipline_and_momo`.
+- [x] Full Module 2 test suite passes (`flutter test test/features/saving_discipline_and_momo/`).

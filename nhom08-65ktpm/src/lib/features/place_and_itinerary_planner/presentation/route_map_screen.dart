@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/place_plan.dart';
 import '../models/place_suggestion.dart';
 import '../providers/itinerary_providers.dart';
@@ -194,16 +195,37 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     return total;
   }
 
+  Future<bool> _requestLocationPermission() async {
+    var status = await Permission.locationWhenInUse.status;
+    if (status.isDenied) {
+      status = await Permission.locationWhenInUse.request();
+    }
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      await openAppSettings();
+      return false;
+    }
+    return status.isGranted || status.isLimited;
+  }
+
+  Future<bool> _requestCameraPermission() async {
+    var status = await Permission.camera.status;
+    if (status.isDenied) {
+      status = await Permission.camera.request();
+    }
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      await openAppSettings();
+      return false;
+    }
+    return status.isGranted || status.isLimited;
+  }
+
   Future<void> _checkIn(PlacePlan plan) async {
     try {
+      if (!await _requestLocationPermission()) {
+        throw Exception('Chưa được cấp quyền vị trí.');
+      }
       if (!await Geolocator.isLocationServiceEnabled())
         throw Exception('Vui lòng bật dịch vụ vị trí.');
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied)
-        permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever)
-        throw Exception('Chưa được cấp quyền vị trí.');
       final position = await Geolocator.getCurrentPosition();
       final meters = Geolocator.distanceBetween(
         position.latitude,
@@ -215,6 +237,9 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
         throw Exception(
           'Bạn đang cách điểm đến ${meters.round()} m; cần ở trong bán kính 150 m.',
         );
+      if (!await _requestCameraPermission()) {
+        throw Exception('Chưa được cấp quyền camera để chụp ảnh check-in.');
+      }
       final image = await ImagePicker().pickImage(
         source: ImageSource.camera,
         imageQuality: 80,

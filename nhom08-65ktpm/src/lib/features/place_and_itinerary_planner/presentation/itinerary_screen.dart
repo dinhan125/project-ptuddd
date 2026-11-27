@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../models/place_plan.dart';
 import '../providers/itinerary_providers.dart';
 import '../utils/schedule_conflict_helper.dart';
@@ -9,7 +11,17 @@ import 'route_map_screen.dart';
 class ItineraryScreen extends ConsumerWidget {
   final String tripId;
   final int dayCount;
-  const ItineraryScreen({super.key, required this.tripId, this.dayCount = 3});
+  final String? destinationName;
+  final double? destinationLat;
+  final double? destinationLng;
+  const ItineraryScreen({
+    super.key,
+    required this.tripId,
+    this.dayCount = 3,
+    this.destinationName,
+    this.destinationLat,
+    this.destinationLng,
+  });
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDay = ref.watch(selectedDayProvider(tripId));
@@ -17,8 +29,23 @@ class ItineraryScreen extends ConsumerWidget {
     final plans = itinerary.forDay(selectedDay);
     final conflicts = itinerary.conflicts(selectedDay);
     final notifier = ref.read(itineraryProvider(tripId).notifier);
+    final hasGoRouter = GoRouter.maybeOf(context) != null;
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: hasGoRouter ? 110 : null,
+        leading: hasGoRouter
+            ? TextButton.icon(
+                onPressed: () => context.go('/trips'),
+                icon: const Icon(
+                  Icons.chevron_left,
+                  color: AppColors.onPrimaryContainer,
+                ),
+                label: const Text(
+                  'Chuyến đi',
+                  style: TextStyle(color: AppColors.onPrimaryContainer),
+                ),
+              )
+            : null,
         title: const Text('Lịch trình Travel Buddy'),
         actions: [
           IconButton(
@@ -26,7 +53,14 @@ class ItineraryScreen extends ConsumerWidget {
             tooltip: 'Bản đồ',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => RouteMapScreen(tripId: tripId)),
+              MaterialPageRoute(
+                builder: (_) => RouteMapScreen(
+                  tripId: tripId,
+                  destinationName: destinationName,
+                  initialLat: destinationLat,
+                  initialLng: destinationLng,
+                ),
+              ),
             ),
           ),
         ],
@@ -118,6 +152,9 @@ class ItineraryScreen extends ConsumerWidget {
                                     builder: (_) => AddActivityScreen(
                                       tripId: tripId,
                                       initialPlan: plan,
+                                      dayCount: dayCount,
+                                      defaultLat: destinationLat,
+                                      defaultLon: destinationLng,
                                     ),
                                   ),
                                 );
@@ -144,7 +181,14 @@ class ItineraryScreen extends ConsumerWidget {
         heroTag: 'itinerary_fab',
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => AddActivityScreen(tripId: tripId)),
+          MaterialPageRoute(
+            builder: (_) => AddActivityScreen(
+              tripId: tripId,
+              dayCount: dayCount,
+              defaultLat: destinationLat,
+              defaultLon: destinationLng,
+            ),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('Thêm địa điểm'),

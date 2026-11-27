@@ -9,11 +9,17 @@ class AddActivityScreen extends ConsumerStatefulWidget {
   final String tripId;
   final PlacePlan? initialPlan;
   final PlaceSuggestion? suggestion;
+  final int dayCount;
+  final double? defaultLat;
+  final double? defaultLon;
   const AddActivityScreen({
     super.key,
     required this.tripId,
     this.initialPlan,
     this.suggestion,
+    this.dayCount = 14,
+    this.defaultLat,
+    this.defaultLon,
   });
   @override
   ConsumerState<AddActivityScreen> createState() => _AddActivityScreenState();
@@ -28,11 +34,11 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
   );
   late final TextEditingController lat = TextEditingController(
     text:
-        '${widget.initialPlan?.latitude ?? widget.suggestion?.latitude ?? 10.7769}',
+        '${widget.initialPlan?.latitude ?? widget.suggestion?.latitude ?? widget.defaultLat ?? 10.7769}',
   );
   late final TextEditingController lon = TextEditingController(
     text:
-        '${widget.initialPlan?.longitude ?? widget.suggestion?.longitude ?? 106.7009}',
+        '${widget.initialPlan?.longitude ?? widget.suggestion?.longitude ?? widget.defaultLon ?? 106.7009}',
   );
   late final TextEditingController duration = TextEditingController(
     text:
@@ -149,10 +155,10 @@ class _AddActivityScreenState extends ConsumerState<AddActivityScreen> {
             ],
           ),
           DropdownButtonFormField<int>(
-            value: day,
+            initialValue: day,
             decoration: const InputDecoration(labelText: 'Ngày'),
             items: List.generate(
-              14,
+              widget.dayCount < day ? day : widget.dayCount,
               (i) =>
                   DropdownMenuItem(value: i + 1, child: Text('Ngày ${i + 1}')),
             ),

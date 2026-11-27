@@ -191,6 +191,9 @@ class _LiveMomoFundPage extends ConsumerWidget {
       memberId: memberId,
       memberName: memberName,
       isHost: isHost,
+      tripTargetBudget: trip?.targetBudget.toDouble(),
+      tripDepartureDate: trip?.startDate,
+      tripMemberCount: trip?.memberIds.length,
     );
   }
 }
@@ -221,7 +224,13 @@ class _LiveItineraryPage extends ConsumerWidget {
         ? 3
         : (trip.endDate.difference(trip.startDate).inDays + 1).clamp(1, 30);
 
-    return ItineraryScreen(tripId: tripId, dayCount: days);
+    return ItineraryScreen(
+      tripId: tripId,
+      dayCount: days,
+      destinationName: trip?.destination,
+      destinationLat: trip?.destinationLat,
+      destinationLng: trip?.destinationLng,
+    );
   }
 }
 
@@ -230,7 +239,16 @@ class _LiveAddActivityPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final trip = ref.watch(currentTripProvider).asData?.value;
     final tripId = ref.watch(currentTripIdProvider) ?? 'demo-trip';
-    return AddActivityScreen(tripId: tripId);
+    final days = trip == null
+        ? 14
+        : (trip.endDate.difference(trip.startDate).inDays + 1).clamp(1, 30);
+    return AddActivityScreen(
+      tripId: tripId,
+      dayCount: days,
+      defaultLat: trip?.destinationLat,
+      defaultLon: trip?.destinationLng,
+    );
   }
 }

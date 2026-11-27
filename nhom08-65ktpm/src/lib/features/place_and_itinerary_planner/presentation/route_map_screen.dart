@@ -12,7 +12,16 @@ import 'add_activity_screen.dart';
 
 class RouteMapScreen extends ConsumerStatefulWidget {
   final String tripId;
-  const RouteMapScreen({super.key, required this.tripId});
+  final String? destinationName;
+  final double? initialLat;
+  final double? initialLng;
+  const RouteMapScreen({
+    super.key,
+    required this.tripId,
+    this.destinationName,
+    this.initialLat,
+    this.initialLng,
+  });
   @override
   ConsumerState<RouteMapScreen> createState() => _RouteMapScreenState();
 }
@@ -20,14 +29,42 @@ class RouteMapScreen extends ConsumerStatefulWidget {
 class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
   GoogleMapController? mapController;
   String query = '';
+  late double _centerLat = widget.initialLat ?? 10.7769;
+  late double _centerLon = widget.initialLng ?? 106.7009;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref
-          .read(itineraryProvider(widget.tripId).notifier)
-          .searchSuggestions(),
+    Future.microtask(_initMapAndSuggestions);
+  }
+
+  Future<void> _initMapAndSuggestions() async {
+    final plans = ref.read(itineraryProvider(widget.tripId)).plans;
+    if (plans.isNotEmpty) {
+      _centerLat = plans.first.latitude;
+      _centerLon = plans.first.longitude;
+    } else if ((widget.initialLat == null || widget.initialLng == null) &&
+        (widget.destinationName?.trim().isNotEmpty ?? false)) {
+      final resolved = await ref
+          .read(placeDiscoveryRepositoryProvider)
+          .resolveDestinationCoordinates(widget.destinationName!);
+      if (resolved != null && mounted) {
+        setState(() {
+          _centerLat = resolved.lat;
+          _centerLon = resolved.lon;
+        });
+      }
+    }
+
+    await mapController?.animateCamera(
+      CameraUpdate.newLatLng(LatLng(_centerLat, _centerLon)),
     );
+    if (!mounted) return;
+    await ref.read(itineraryProvider(widget.tripId).notifier).searchSuggestions(
+          latitude: _centerLat,
+          longitude: _centerLon,
+          destinationName: widget.destinationName,
+        );
   }
 
   @override
@@ -73,7 +110,13 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
               onChanged: (v) => setState(() => query = v),
               onSubmitted: (_) => ref
                   .read(itineraryProvider(widget.tripId).notifier)
-                  .searchSuggestions(query: query, category: filter),
+                  .searchSuggestions(
+                    query: query,
+                    category: filter,
+                    latitude: _centerLat,
+                    longitude: _centerLon,
+                    destinationName: widget.destinationName,
+                  ),
             ),
           ),
           SingleChildScrollView(
@@ -99,6 +142,9 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                             .searchSuggestions(
                               query: query,
                               category: entry.value,
+                              latitude: _centerLat,
+                              longitude: _centerLon,
+                              destinationName: widget.destinationName,
                             );
                       },
                     ),
@@ -109,8 +155,8 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
           SizedBox(
             height: 280,
             child: GoogleMap(
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(10.7769, 106.7009),
+              initialCameraPosition: CameraPosition(
+                target: LatLng(_centerLat, _centerLon),
                 zoom: 12,
               ),
               markers: markers,
@@ -123,7 +169,12 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                     width: 5,
                   ),
               },
-              onMapCreated: (c) => mapController = c,
+              onMapCreated: (c) {
+                mapController = c;
+                c.moveCamera(
+                  CameraUpdate.newLatLng(LatLng(_centerLat, _centerLon)),
+                );
+              },
             ),
           ),
           Padding(
@@ -152,10 +203,24 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                     subtitle: Text(
                       plan.isCheckedIn ? 'Đã check-in' : 'Chưa check-in',
                     ),
-                    trailing: FilledButton(
-                      onPressed: plan.isCheckedIn ? null : () => _checkIn(plan),
-                      child: const Text('Check-in'),
-                    ),
+                    trailing: plan.isCheckedIn
+                        ? TextButton.icon(
+                            onPressed: plan.checkInPhotoUrl != null &&
+                                    plan.checkInPhotoUrl!.isNotEmpty
+                                ? () => _showCheckInPhoto(plan)
+                                : null,
+                            icon: const Icon(Icons.verified, size: 18),
+                            label: Text(
+                              plan.checkInPhotoUrl != null &&
+                                      plan.checkInPhotoUrl!.isNotEmpty
+                                  ? 'Xem ảnh'
+                                  : 'Đã check-in',
+                            ),
+                          )
+                        : FilledButton(
+                            onPressed: () => _checkIn(plan),
+                            child: const Text('Check-in'),
+                          ),
                   ),
               ],
             ),
@@ -246,9 +311,6 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
       );
       if (image == null || !mounted) return;
       await ref.read(itineraryRepositoryProvider).checkIn(plan, image);
-      await ref
-          .read(itineraryProvider(widget.tripId).notifier)
-          .searchSuggestions();
       if (mounted)
         ScaffoldMessenger.of(
           context,
@@ -259,5 +321,46 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
     }
+  }
+
+  void _showCheckInPhoto(PlacePlan plan) {
+    final url = plan.checkInPhotoUrl;
+    if (url == null || url.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppBar(
+              title: Text(
+                'Check-in: ${plan.placeName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Không tải được ảnh check-in.'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

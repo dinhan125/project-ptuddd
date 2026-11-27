@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../models/place_plan.dart';
@@ -43,30 +45,42 @@ class ItineraryNotifier extends Notifier<ItineraryState> {
   final String tripId;
   ItineraryNotifier(this.tripId);
   late final ItineraryRepository _repository;
+  StreamSubscription<List<PlacePlan>>? _subscription;
+
   @override
   ItineraryState build() {
     _repository = ref.watch(itineraryRepositoryProvider);
-    _load();
+    _subscription?.cancel();
+    _subscription = _repository.watchPlans(tripId).listen(
+      (plans) {
+        state = ItineraryState(
+          plans: plans,
+          suggestions: state.suggestions,
+          loading: false,
+        );
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        state = ItineraryState(
+          plans: state.plans,
+          suggestions: state.suggestions,
+          loading: false,
+          error: error.toString(),
+        );
+      },
+    );
+    ref.onDispose(() {
+      _subscription?.cancel();
+      _subscription = null;
+    });
     return const ItineraryState(loading: true);
-  }
-
-  Future<void> _load() async {
-    try {
-      final plans = await _repository.watchPlans(tripId).first;
-      state = ItineraryState(plans: plans, suggestions: state.suggestions);
-    } catch (e) {
-      state = ItineraryState(error: e.toString());
-    }
   }
 
   Future<void> save(PlacePlan plan) async {
     await _repository.savePlan(plan);
-    await _load();
   }
 
   Future<void> delete(PlacePlan plan) async {
     await _repository.deletePlan(plan.tripId, plan.id);
-    await _load();
   }
 
   Future<void> reorder(int day, int oldIndex, int newIndex) async {
@@ -78,12 +92,14 @@ class ItineraryNotifier extends Notifier<ItineraryState> {
       for (var i = 0; i < list.length; i++) list[i].copyWith(sortOrder: i),
     ];
     await _repository.reorderPlans(tripId, day, updated);
-    await _load();
   }
 
   Future<void> searchSuggestions({
     String query = '',
     PlaceCategory? category,
+    double latitude = 10.7769,
+    double longitude = 106.7009,
+    String? destinationName,
   }) async {
     state = ItineraryState(
       plans: state.plans,
@@ -92,7 +108,13 @@ class ItineraryNotifier extends Notifier<ItineraryState> {
     );
     final items = await ref
         .read(placeDiscoveryRepositoryProvider)
-        .search(query: query, category: category);
+        .search(
+          query: query,
+          category: category,
+          latitude: latitude,
+          longitude: longitude,
+          destinationName: destinationName,
+        );
     state = ItineraryState(plans: state.plans, suggestions: items);
   }
 }

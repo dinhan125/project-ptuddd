@@ -10,6 +10,7 @@ import 'package:travel_buddy/features/goal_and_checklist/models/checklist_item.d
 import 'package:travel_buddy/features/goal_and_checklist/presentation/checklist_screen.dart';
 import 'package:travel_buddy/features/goal_and_checklist/repository/checklist_repository.dart';
 import 'package:travel_buddy/features/goal_and_checklist/utils/checklist_reminder_helper.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/models/saving_plan.dart';
 import 'package:travel_buddy/models/trip_model.dart';
 
 void main() {
@@ -244,6 +245,41 @@ void main() {
       expect(SmartChecklistTemplates.forTripType(TripType.motorbike)?.id, 'tpl_motorbike');
       expect(SmartChecklistTemplates.forTripType(TripType.backpacking)?.id, 'tpl_backpacking');
       expect(SmartChecklistTemplates.forTripType(TripType.other), isNull);
+    });
+
+    test('computes saving reminder schedule time for active vs completed plans', () {
+      final now = DateTime(2026, 11, 1, 8, 0);
+      final plan = SavingPlan(
+        id: 't1_u1',
+        tripId: 't1',
+        memberId: 'u1',
+        memberName: 'An',
+        targetAmount: 1000000,
+        frequency: SavingFrequency.weekly,
+        installmentAmount: 250000,
+        totalInstallments: 4,
+        startDate: DateTime(2026, 11, 1),
+        deadlineDate: DateTime(2026, 11, 29),
+      );
+      final scheduled = LocalNotificationService.computeSavingReminderScheduleTime(
+        plan: plan,
+        deposits: const [],
+        now: now,
+      );
+      expect(scheduled, DateTime(2026, 11, 8, 9, 0));
+
+      final completedPlan = plan.copyWith(
+        paidAmount: 1000000,
+        status: SavingPlanStatus.completed,
+      );
+      expect(
+        LocalNotificationService.computeSavingReminderScheduleTime(
+          plan: completedPlan,
+          deposits: const [],
+          now: now,
+        ),
+        isNull,
+      );
     });
   });
 }

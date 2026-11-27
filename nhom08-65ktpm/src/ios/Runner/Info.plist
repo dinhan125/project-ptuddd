@@ -49,6 +49,16 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Travel Buddy cần quyền Camera để quét mã QR, chụp ảnh xác thực checklist và check-in địa điểm.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Travel Buddy cần quyền Thư viện ảnh để tải ảnh bìa chuyến đi, biên lai nạp quỹ và minh chứng công việc.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Travel Buddy cần quyền Vị trí để kiểm tra bán kính check-in tại điểm đến và hiển thị bản đồ lộ trình.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>momo</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

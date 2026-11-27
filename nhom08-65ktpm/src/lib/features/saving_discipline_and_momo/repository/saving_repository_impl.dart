@@ -33,8 +33,14 @@ class SavingRepositoryImpl implements SavingRepository {
         _storageService = storageService ?? SupabaseStorageService();
 
   // --- Collection references ---
+  DocumentReference _tripDoc(String tripId) =>
+      _firestore.collection('trips').doc(tripId);
+
+  DocumentReference _memberDoc(String tripId, String memberId) =>
+      _tripDoc(tripId).collection('members').doc(memberId);
+
   DocumentReference _fundConfigDoc(String tripId) =>
-      _firestore.collection('trips').doc(tripId).collection('momo_fund_config').doc('default');
+      _tripDoc(tripId).collection('momo_fund_config').doc('default');
 
   CollectionReference _savingPlansColl(String tripId) =>
       _firestore.collection('trips').doc(tripId).collection('saving_plans');
@@ -188,6 +194,10 @@ class SavingRepositoryImpl implements SavingRepository {
       final isTransitionToApproved =
           status == DepositStatus.approved && parsedDeposit.status != DepositStatus.approved;
 
+      final tripRef = _tripDoc(tripId);
+      final memberDocRef = parsedDeposit.memberId.isNotEmpty
+          ? _memberDoc(tripId, parsedDeposit.memberId)
+          : null;
       final fundDocRef = _fundConfigDoc(tripId);
       final planDocRef = parsedDeposit.memberId.isNotEmpty
           ? _savingPlanDoc(tripId, parsedDeposit.memberId)
@@ -196,11 +206,17 @@ class SavingRepositoryImpl implements SavingRepository {
           ? _memberStreakDoc(tripId, parsedDeposit.memberId)
           : null;
 
+      DocumentSnapshot? tripSnap;
+      DocumentSnapshot? memberSnap;
       DocumentSnapshot? fundSnap;
       DocumentSnapshot? planSnap;
       DocumentSnapshot? streakSnap;
 
       if (isTransitionToApproved) {
+        tripSnap = await transaction.get(tripRef);
+        if (memberDocRef != null) {
+          memberSnap = await transaction.get(memberDocRef);
+        }
         fundSnap = await transaction.get(fundDocRef);
         if (planDocRef != null) {
           planSnap = await transaction.get(planDocRef);
@@ -227,10 +243,20 @@ class SavingRepositoryImpl implements SavingRepository {
       transaction.update(depositRef, updatePayload);
 
       if (isTransitionToApproved) {
+        final amountInt = parsedDeposit.amount.round();
+        final nowTs = Timestamp.now();
+
+        if (tripSnap != null && tripSnap.exists) {
+          transaction.update(tripRef, {
+            'totalSavedAmount': FieldValue.increment(amountInt),
+            'updatedAt': nowTs,
+          });
+        }
+
         if (fundSnap != null && fundSnap.exists) {
           transaction.update(fundDocRef, {
             'currentCollectedAmount': FieldValue.increment(parsedDeposit.amount),
-            'updatedAt': Timestamp.now(),
+            'updatedAt': nowTs,
           });
         }
 
@@ -248,6 +274,7 @@ class SavingRepositoryImpl implements SavingRepository {
           });
         }
 
+        MemberStreak? updatedStreak;
         if (streakDocRef != null) {
           final currentStreak = (streakSnap != null && streakSnap.exists && streakSnap.data() != null)
               ? MemberStreak.fromMap(
@@ -257,12 +284,19 @@ class SavingRepositoryImpl implements SavingRepository {
                 )
               : MemberStreak(memberId: parsedDeposit.memberId, tripId: tripId);
 
-          final updatedStreak = SavingStreakCalculator.recordCheckIn(
+          updatedStreak = SavingStreakCalculator.recordCheckIn(
             currentStreak,
             parsedDeposit.depositDate,
             referenceDate: DateTime.now(),
           );
           transaction.set(streakDocRef, updatedStreak.toMap(), SetOptions(merge: true));
+        }
+
+        if (memberDocRef != null && memberSnap != null && memberSnap.exists) {
+          transaction.update(memberDocRef, {
+            'contributedAmount': FieldValue.increment(amountInt),
+            if (updatedStreak != null) 'currentStreak': updatedStreak.currentStreak,
+          });
         }
       }
     });

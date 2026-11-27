@@ -5,6 +5,10 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../features/goal_and_checklist/models/checklist_item.dart';
+import '../../features/saving_discipline_and_momo/models/deposit_record.dart';
+import '../../features/saving_discipline_and_momo/models/saving_plan.dart';
+import '../../features/saving_discipline_and_momo/utils/momo_deeplink_helper.dart';
+import '../../features/saving_discipline_and_momo/utils/saving_streak_calculator.dart';
 
 final localNotificationServiceProvider = Provider<LocalNotificationService>(
   (ref) => LocalNotificationService(),
@@ -154,6 +158,79 @@ class LocalNotificationService {
       _syncedSignatures.remove(id);
       await _cancelSafe(notificationIdForItem(id));
     }
+  }
+
+  /// Returns the target local reminder timestamp for the next saving deposit, or `null`
+  /// when the plan is completed or no future reminder window exists.
+  static DateTime? computeSavingReminderScheduleTime({
+    required SavingPlan plan,
+    required List<DepositRecord> deposits,
+    DateTime? now,
+  }) {
+    final ref = now ?? DateTime.now();
+    final nextIncoming = SavingStreakCalculator.nextIncomingDeposit(
+      plan: plan,
+      deposits: deposits,
+      today: ref,
+    );
+    if (nextIncoming == null) return null;
+
+    final due = nextIncoming.dueDate;
+    final dueMorning = DateTime(due.year, due.month, due.day, 9, 0);
+    if (dueMorning.isAfter(ref)) {
+      return dueMorning;
+    }
+    final dueEvening = DateTime(due.year, due.month, due.day, 19, 0);
+    if (dueEvening.isAfter(ref)) {
+      return dueEvening;
+    }
+    return null;
+  }
+
+  /// Schedules or cancels an OS local reminder for a member's next saving deposit.
+  Future<void> syncSavingPlanReminder({
+    required SavingPlan? plan,
+    required List<DepositRecord> memberDeposits,
+    required String tripId,
+    required String memberId,
+  }) async {
+    if (!_initialized || kIsWeb) return;
+    _ensureTimeZones();
+
+    final key = 'saving:$tripId:$memberId';
+    final notifId = notificationIdForItem(key);
+    if (plan == null) {
+      _syncedSignatures.remove(key);
+      await _cancelSafe(notifId);
+      return;
+    }
+
+    final scheduledAt = computeSavingReminderScheduleTime(
+      plan: plan,
+      deposits: memberDeposits,
+    );
+    final nextIncoming = SavingStreakCalculator.nextIncomingDeposit(
+      plan: plan,
+      deposits: memberDeposits,
+    );
+    final signature =
+        '${plan.status.name}|${plan.completedInstallments}|${scheduledAt?.millisecondsSinceEpoch}|${nextIncoming?.amount.round()}';
+    if (_syncedSignatures[key] == signature) return;
+    _syncedSignatures[key] = signature;
+
+    if (scheduledAt == null || nextIncoming == null) {
+      await _cancelSafe(notifId);
+      return;
+    }
+
+    final amountStr = MoMoDeeplinkHelper.formatVnd(nextIncoming.amount.round());
+    await _scheduleSafe(
+      id: notifId,
+      title: 'Nhắc đóng quỹ MoMo',
+      body: 'Kỳ ${nextIncoming.installmentIndex}: cần đóng $amountStr để giữ chuỗi kỷ luật.',
+      scheduledAt: scheduledAt,
+      payload: key,
+    );
   }
 
   Future<void> _scheduleSafe({

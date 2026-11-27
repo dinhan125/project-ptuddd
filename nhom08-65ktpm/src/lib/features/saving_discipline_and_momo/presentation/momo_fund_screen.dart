@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/services/local_notification_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
@@ -36,12 +37,18 @@ class MomoFundScreen extends StatelessWidget {
     this.memberId = 'member_demo_01',
     this.memberName = 'Đỗ Đình An',
     this.isHost,
+    this.tripTargetBudget,
+    this.tripDepartureDate,
+    this.tripMemberCount,
   });
 
   final String tripId;
   final String memberId;
   final String memberName;
   final bool? isHost;
+  final double? tripTargetBudget;
+  final DateTime? tripDepartureDate;
+  final int? tripMemberCount;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +58,9 @@ class MomoFundScreen extends StatelessWidget {
         memberId: memberId,
         memberName: memberName,
         isHost: isHost,
+        tripTargetBudget: tripTargetBudget,
+        tripDepartureDate: tripDepartureDate,
+        tripMemberCount: tripMemberCount,
       ),
     );
   }
@@ -62,12 +72,18 @@ class _MomoFundContent extends ConsumerStatefulWidget {
     required this.memberId,
     required this.memberName,
     this.isHost,
+    this.tripTargetBudget,
+    this.tripDepartureDate,
+    this.tripMemberCount,
   });
 
   final String tripId;
   final String memberId;
   final String memberName;
   final bool? isHost;
+  final double? tripTargetBudget;
+  final DateTime? tripDepartureDate;
+  final int? tripMemberCount;
 
   @override
   ConsumerState<_MomoFundContent> createState() => _MomoFundContentState();
@@ -83,7 +99,8 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         tripId: widget.tripId,
         hostUserId: currentConfig?.hostUserId ?? widget.memberId,
         hostName: currentConfig?.hostName ?? widget.memberName,
-        targetTotalAmount: currentConfig?.targetTotalAmount ?? 8450000,
+        targetTotalAmount:
+            currentConfig?.targetTotalAmount ?? widget.tripTargetBudget ?? 8450000,
         initialFundName: currentConfig?.fundName ?? 'Quỹ chuyến đi',
         initialPhoneNumber: currentConfig?.momoPhoneNumber ?? '',
         initialFundLink: currentConfig?.momoFundDeeplink ?? '',
@@ -121,13 +138,25 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     }
   }
 
-  void _openSavingPlanScreen() {
+  void _openSavingPlanScreen({
+    MoMoFundConfig? fundConfig,
+    int memberCount = 1,
+  }) {
+    final totalTarget =
+        (fundConfig != null && fundConfig.targetTotalAmount > 0)
+            ? fundConfig.targetTotalAmount
+            : (widget.tripTargetBudget ?? 3000000);
+    final divisor = (widget.tripMemberCount ?? memberCount).clamp(1, 100);
+    final perMemberDefault = (totalTarget / divisor).roundToDouble();
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SavingPlanScreen(
           tripId: widget.tripId,
           memberId: widget.memberId,
           memberName: widget.memberName,
+          defaultTargetAmount: perMemberDefault,
+          tripDepartureDate: widget.tripDepartureDate,
         ),
       ),
     );
@@ -192,6 +221,38 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     final plansAsync = ref.watch(tripSavingPlansStreamProvider(widget.tripId));
     final streaksAsync = ref.watch(tripStreaksStreamProvider(widget.tripId));
 
+    ref.listen(tripSavingPlansStreamProvider(widget.tripId), (_, next) {
+      final planList = next.asData?.value;
+      if (planList == null) return;
+      final myPlan = planList.where((p) => p.memberId == widget.memberId).firstOrNull;
+      final myDeposits = (ref.read(tripDepositsStreamProvider(widget.tripId)).value ??
+              const <DepositRecord>[])
+          .where((d) => d.memberId == widget.memberId)
+          .toList();
+      ref.read(localNotificationServiceProvider).syncSavingPlanReminder(
+            plan: myPlan,
+            memberDeposits: myDeposits,
+            tripId: widget.tripId,
+            memberId: widget.memberId,
+          );
+    });
+    ref.listen(tripDepositsStreamProvider(widget.tripId), (_, next) {
+      final depositList = next.asData?.value;
+      if (depositList == null) return;
+      final planList =
+          ref.read(tripSavingPlansStreamProvider(widget.tripId)).value ??
+              const <SavingPlan>[];
+      final myPlan = planList.where((p) => p.memberId == widget.memberId).firstOrNull;
+      final myDeposits =
+          depositList.where((d) => d.memberId == widget.memberId).toList();
+      ref.read(localNotificationServiceProvider).syncSavingPlanReminder(
+            plan: myPlan,
+            memberDeposits: myDeposits,
+            tripId: widget.tripId,
+            memberId: widget.memberId,
+          );
+    });
+
     final fundConfig = fundConfigAsync.value;
     final deposits = depositsAsync.value ?? const <DepositRecord>[];
     final plans = List<SavingPlan>.from(plansAsync.value ?? const <SavingPlan>[]);
@@ -213,8 +274,12 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     final collectedAmount = fundConfig?.currentCollectedAmount ?? totalPlanPaid;
     final targetAmount = (fundConfig != null && fundConfig.targetTotalAmount > 0)
         ? fundConfig.targetTotalAmount
-        : totalPlanTarget;
-    final memberCount = plans.isNotEmpty ? plans.length : 1;
+        : (totalPlanTarget > 0
+            ? totalPlanTarget
+            : (widget.tripTargetBudget ?? 0.0));
+    final memberCount = plans.isNotEmpty
+        ? plans.length
+        : (widget.tripMemberCount ?? 1);
 
     final cycleLabel = (memberPlan != null && memberPlan.totalInstallments > 0)
         ? 'Kỳ hiện tại (Kỳ ${memberPlan.completedInstallments + 1}/${memberPlan.totalInstallments})'
@@ -271,7 +336,10 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
           IconButton(
             tooltip: 'Kế hoạch tích góp',
             icon: const Icon(Icons.event_repeat_rounded, color: AppColors.primary),
-            onPressed: _openSavingPlanScreen,
+            onPressed: () => _openSavingPlanScreen(
+              fundConfig: fundConfig,
+              memberCount: memberCount,
+            ),
           ),
           IconButton(
             tooltip: 'Thiết lập kế hoạch & Liên kết MoMo',

@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:travel_buddy/features/place_and_itinerary_planner/models/place_plan.dart';
+import 'package:travel_buddy/features/place_and_itinerary_planner/providers/itinerary_providers.dart';
 import 'package:travel_buddy/features/place_and_itinerary_planner/repository/itinerary_repository.dart';
 import 'package:travel_buddy/features/place_and_itinerary_planner/repository/place_discovery_repository.dart';
 import 'package:travel_buddy/features/place_and_itinerary_planner/utils/schedule_conflict_helper.dart';
@@ -10,6 +12,7 @@ import 'package:travel_buddy/features/place_and_itinerary_planner/utils/schedule
 PlacePlan makePlan({
   required String id,
   required int startHour,
+  String tripId = 'trip-test',
   int startMinute = 0,
   int durationMinutes = 60,
   int sortOrder = 0,
@@ -19,7 +22,7 @@ PlacePlan makePlan({
 }) {
   return PlacePlan(
     id: id,
-    tripId: 'trip-test',
+    tripId: tripId,
     dayNumber: 1,
     sortOrder: sortOrder,
     placeName: 'Địa điểm $id',
@@ -179,6 +182,47 @@ void main() {
 
       expect(suggestions, hasLength(1));
       expect(suggestions.single.category, PlaceCategory.food);
+    });
+
+    test('resolves known Vietnam destination coordinates offline', () async {
+      final dalat = await repository.resolveDestinationCoordinates('Đà Lạt, Lâm Đồng');
+      expect(dalat, isNotNull);
+      expect(dalat!.lat, closeTo(11.9404, 0.01));
+      expect(dalat.lon, closeTo(108.4583, 0.01));
+    });
+  });
+
+  group('ItineraryNotifier realtime stream', () {
+    test('updates state automatically on repository save and delete', () async {
+      final repo = InMemoryItineraryRepository();
+      final container = ProviderContainer(
+        overrides: [itineraryRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+
+      const tripId = 'trip-stream';
+      final sub = container.listen(itineraryProvider(tripId), (_, _) {});
+      addTearDown(sub.close);
+
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(itineraryProvider(tripId)).plans, isEmpty);
+
+      final plan = makePlan(
+        id: 'rt-1',
+        tripId: tripId,
+        startHour: 9,
+        ticketCost: 50000,
+      );
+      await repo.savePlan(plan);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(itineraryProvider(tripId)).plans, hasLength(1));
+      expect(container.read(itineraryProvider(tripId)).tripCost, 50000);
+
+      await repo.deletePlan(tripId, 'rt-1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(itineraryProvider(tripId)).plans, isEmpty);
     });
   });
 }

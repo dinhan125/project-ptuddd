@@ -110,12 +110,12 @@ class FirestoreTripRepository implements TripRepository {
   Stream<List<TripModel>> watchUserTrips(String userId) {
     return _tripsColl
         .where('memberIds', arrayContains: userId)
-        .orderBy('startDate')
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
               .map((d) => TripModel.fromJson({...d.data(), 'id': d.id}))
-              .toList(),
+              .toList()
+            ..sort((a, b) => a.startDate.compareTo(b.startDate)),
         );
   }
 

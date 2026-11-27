@@ -95,9 +95,9 @@ class FirestoreChecklistRepository implements ChecklistRepository {
     }
 
     // Separate scoped queries satisfy Firestore security rules (`scope == 'group'` vs `ownerId == uid`).
+    // Sorting is performed in Dart inside `emit()` to avoid composite index build delays.
     final groupSub = _checklistsColl(tripId)
         .where('scope', isEqualTo: 'group')
-        .orderBy('sortOrder')
         .snapshots()
         .listen(
           (snap) {
@@ -115,7 +115,6 @@ class FirestoreChecklistRepository implements ChecklistRepository {
       personalSub = _checklistsColl(tripId)
           .where('scope', isEqualTo: 'personal')
           .where('ownerId', isEqualTo: currentUserId)
-          .orderBy('sortOrder')
           .snapshots()
           .listen(
             (snap) {

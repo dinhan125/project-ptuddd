@@ -13,6 +13,14 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "scope", "order": "ASCENDING" },
+        { "fieldPath": "sortOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "checklists",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope", "order": "ASCENDING" },
         { "fieldPath": "phase", "order": "ASCENDING" },
         { "fieldPath": "sortOrder", "order": "ASCENDING" }
       ]

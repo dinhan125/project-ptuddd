@@ -229,12 +229,30 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
             ),
             const SizedBox(height: 16),
             if (filteredList.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 64),
-                child: Center(
-                  child: Text(
-                    'Không có biên lai nào trong mục này.',
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
+              Padding(
+                padding: const EdgeInsets.only(top: 48),
+                child: AppInsetCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.receipt_long_outlined,
+                        size: 36,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Không có biên lai nào trong mục này.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -289,10 +307,16 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                             ),
                             Text(
                               MoMoDeeplinkHelper.formatVnd(record.amount.round()),
-                              style: AppTheme.monoAmount(fontSize: 16, color: AppColors.momo),
+                              style: AppTheme.monoAmount(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.momo,
+                              ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1, color: AppColors.outlineVariantSoft),
                         const SizedBox(height: 12),
 
                         // Khung xem trước ảnh biên lai MoMo
@@ -357,13 +381,33 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                         if (record.status == DepositStatus.rejected &&
                             record.rejectionReason != null &&
                             record.rejectionReason!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Lý do từ chối: ${record.rejectionReason}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.onErrorContainer,
-                              fontWeight: FontWeight.w500,
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.errorContainer,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 15,
+                                  color: AppColors.onErrorContainer,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Lý do từ chối: ${record.rejectionReason}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.onErrorContainer,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],

@@ -255,24 +255,60 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
               ),
               const SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-                    child: const Text('Đóng', style: TextStyle(color: AppColors.onPrimaryContainer)),
-                  ),
                   Expanded(
-                    child: Text(
-                      'Nạp quỹ ${widget.cycleLabel}',
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Nạp quỹ ${widget.cycleLabel}',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.fundName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 60),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: AppColors.outlineVariantSoft),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.outlineVariantSoft),
+              const SizedBox(height: 14),
 
               // BƯỚC 1: Mở MoMo + Fallback QR / Copy
               const AppSectionHeader(title: 'Bước 1 — Chuyển tiền vào Quỹ nhóm MoMo'),
@@ -282,19 +318,40 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                 child: Column(
                   children: [
                     Text(
-                      widget.fundName,
-                      style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
                       formattedAmount,
-                      style: AppTheme.monoAmount(fontSize: 30, fontWeight: FontWeight.w700),
+                      style: AppTheme.monoAmount(fontSize: 30, fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Nội dung gợi ý: $transferNote',
-                      style: const TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
-                      textAlign: TextAlign.center,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.outlineVariantSoft),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.tag_rounded,
+                            size: 14,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              transferNote,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 14),
                     AppPrimaryButton(
@@ -450,41 +507,84 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
 
               // Cảm xúc & ghi chú ngắn kiểu DailyYou
               AppInsetCard(
-                padding: const EdgeInsets.all(12),
+                borderRadius: 16,
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text(
+                      'CẢM XÚC HÔM NAY',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.6,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: List.generate(_moods.length, (index) {
                         final active = _selectedMood == index;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedMood = index),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: active
-                                  ? AppColors.primaryContainer
-                                  : AppColors.surfaceContainerLow,
-                              shape: BoxShape.circle,
-                              border: active
-                                  ? Border.all(color: AppColors.primary, width: 1.5)
-                                  : null,
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: index < _moods.length - 1 ? 8 : 0),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => setState(() => _selectedMood = index),
+                              child: Container(
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? AppColors.mintContainer
+                                      : AppColors.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: active
+                                        ? AppColors.mint
+                                        : AppColors.outlineVariantSoft,
+                                    width: active ? 1.5 : 1,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(_moods[index], style: const TextStyle(fontSize: 20)),
+                              ),
                             ),
-                            alignment: Alignment.center,
-                            child: Text(_moods[index], style: const TextStyle(fontSize: 20)),
                           ),
                         );
                       }),
                     ),
-                    const SizedBox(height: 10),
-                    const Divider(),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _noteCtrl,
-                      decoration: const InputDecoration(
+                      maxLines: 2,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
                         hintText: 'Ghi chú ngắn cho chuỗi kỷ luật...',
-                        border: InputBorder.none,
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.edit_note_rounded,
+                          size: 18,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surfaceContainerLow,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.outlineVariantSoft),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.outlineVariantSoft),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.mint, width: 1.5),
+                        ),
                       ),
                     ),
                   ],

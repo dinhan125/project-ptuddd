@@ -293,11 +293,11 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                 Row(
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: AppColors.momoContainer,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
                       child: const Text(
@@ -320,7 +320,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
                           AppStatusBadge(
                             label: isLinked
                                 ? 'Đã liên kết Quỹ nhóm MoMo'
@@ -331,13 +331,44 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Cấu hình liên kết MoMo',
-                      icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.onSurfaceVariant),
-                      onPressed: () => _openSetupMoMoSheet(fundConfig),
+                    SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: IconButton(
+                        tooltip: 'Cấu hình liên kết MoMo',
+                        padding: EdgeInsets.zero,
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.surfaceContainerLow,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: AppColors.outlineVariantSoft),
+                          ),
+                        ),
+                        icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.onSurfaceVariant),
+                        onPressed: () => _openSetupMoMoSheet(fundConfig),
+                      ),
                     ),
                   ],
                 ),
+                if (isLinked && fundConfig.momoPhoneNumber.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: AppColors.outlineVariantSoft),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.phone_iphone_rounded, size: 14, color: AppColors.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Chủ quỹ: ${fundConfig.hostName} • ${fundConfig.momoPhoneNumber}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -491,16 +522,49 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                             ),
                             title: Text(
                               '${idx + 1}. ${plan.memberName}',
-                              style: const TextStyle(fontWeight: FontWeight.w500),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              '${MoMoDeeplinkHelper.formatVnd(plan.paidAmount.round())} / ${MoMoDeeplinkHelper.formatVnd(plan.targetAmount.round())} • 🔥$streakCount',
+                              '${MoMoDeeplinkHelper.formatVnd(plan.paidAmount.round())} / ${MoMoDeeplinkHelper.formatVnd(plan.targetAmount.round())}',
                               style: AppTheme.monoAmount(
                                 fontSize: 12,
                                 color: AppColors.onSurfaceVariant,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: AppStatusBadge(label: badgeText, tone: tone),
+                            trailing: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.local_fire_department_rounded,
+                                      size: 13,
+                                      color: streakCount > 0
+                                          ? AppColors.amber
+                                          : AppColors.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '$streakCount',
+                                      style: AppTheme.monoAmount(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: streakCount > 0
+                                            ? AppColors.onAmberContainer
+                                            : AppColors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                AppStatusBadge(label: badgeText, tone: tone),
+                              ],
+                            ),
                           ),
                           if (idx < plans.length - 1) const Divider(indent: 72),
                         ],

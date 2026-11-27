@@ -4,11 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/deposit_record.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/models/saving_plan.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/approve_receipt_screen.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/deposit_receipt_sheet.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/momo_fund_screen.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/widgets/deposit_due_warning_banner.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/widgets/fund_progress_card.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/in_memory_saving_repository.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/saving_repository_impl.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/utils/saving_streak_calculator.dart';
 
 void main() {
   group('FundProgressCard Widget Tests', () {
@@ -183,6 +187,99 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Duyệt biên lai'), findsOneWidget);
+    });
+
+    testWidgets('DepositReceiptSheet displays inline validation error inside sheet when no photo is picked', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DepositReceiptSheet(fundName: 'Quỹ Test'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Gửi Trưởng nhóm xác nhận'));
+      await tester.tap(find.text('Gửi Trưởng nhóm xác nhận'));
+      await tester.pumpAndSettle();
+
+      // Inline error rendered directly inside the sheet (not only in a hidden SnackBar behind a modal).
+      expect(
+        find.descendant(
+          of: find.byType(DepositReceiptSheet),
+          matching: find.text('Vui lòng chọn ảnh chụp biên lai giao dịch MoMo'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('DepositDueWarningBanner Widget Tests', () {
+    testWidgets('renders due-today warning and fires action callback', (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DepositDueWarningBanner(
+              reminder: TodayDepositReminder(
+                shouldWarn: true,
+                urgency: DepositReminderUrgency.dueToday,
+                frequency: SavingFrequency.daily,
+                installmentIndex: 1,
+                dueDate: DateTime(2026, 11, 27),
+                amountDue: 50000,
+              ),
+              onDepositTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Hôm nay cần nạp quỹ (Hàng ngày)'), findsOneWidget);
+      expect(find.text('Nộp ngay'), findsOneWidget);
+
+      await tester.tap(find.text('Nộp ngay'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('MomoFundScreen shows warning banner when member has daily plan unpaid today', (tester) async {
+      final repo = InMemorySavingRepository();
+      const tripId = 'trip_warn_ui';
+      final now = DateTime.now();
+      await repo.saveSavingPlan(
+        SavingPlan(
+          id: '${tripId}_m_daily',
+          tripId: tripId,
+          memberId: 'm_daily',
+          memberName: 'Nguyễn Văn A',
+          targetAmount: 500000,
+          frequency: SavingFrequency.daily,
+          installmentAmount: 50000,
+          totalInstallments: 10,
+          startDate: DateTime(now.year, now.month, now.day),
+          deadlineDate: DateTime(now.year, now.month, now.day).add(const Duration(days: 10)),
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [savingRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(
+            home: MomoFundScreen(
+              tripId: tripId,
+              memberId: 'm_daily',
+              memberName: 'Nguyễn Văn A',
+              isHost: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hôm nay cần nạp quỹ (Hàng ngày)'), findsOneWidget);
+      expect(find.text('Nộp ngay'), findsOneWidget);
+      expect(find.textContaining('Kỳ nạp tới:'), findsOneWidget);
+      expect(find.byIcon(Icons.event_rounded), findsWidgets);
     });
   });
 }

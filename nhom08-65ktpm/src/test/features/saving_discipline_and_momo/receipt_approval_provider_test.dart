@@ -7,6 +7,8 @@ import 'package:travel_buddy/features/saving_discipline_and_momo/models/deposit_
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/saving_plan.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/providers/receipt_approval_provider.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/providers/saving_plan_provider.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/providers/saving_streak_provider.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/in_memory_saving_repository.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/saving_repository_impl.dart';
 
@@ -46,6 +48,24 @@ void main() {
       final restored = DepositRecord.fromMap(record.toMap(), id: record.id);
       expect(restored.status, DepositStatus.rejected);
       expect(restored.rejectionReason, 'Ảnh bị mờ mã giao dịch');
+    });
+
+    test('round-trips termDueDate and termFrequency through toMap and fromMap', () {
+      final record = DepositRecord(
+        id: 'dep_term_snap',
+        tripId: 'trip_1',
+        memberId: 'm1',
+        memberName: 'Nguyễn Xuân Bình',
+        amount: 212000,
+        installmentIndex: 2,
+        depositDate: DateTime(2026, 11, 14),
+        termDueDate: DateTime(2026, 11, 15),
+        termFrequency: SavingFrequency.weekly,
+      );
+
+      final restored = DepositRecord.fromMap(record.toMap(), id: record.id);
+      expect(restored.termDueDate, DateTime(2026, 11, 15));
+      expect(restored.termFrequency, SavingFrequency.weekly);
     });
   });
 
@@ -240,22 +260,69 @@ void main() {
       expect(allDeposits.single.rejectionReason, 'Thiếu mã giao dịch MoMo');
     });
 
-    test('rethrows repository failures and records AsyncError', () async {
+    test('rethrows repository failures, records AsyncError, and does not save journal entry', () async {
       final container = ProviderContainer(
         overrides: [savingRepositoryProvider.overrideWithValue(_FailingReceiptRepository())],
       );
       addTearDown(container.dispose);
 
       const tripId = 'trip_phase4_fail';
+      const params = SavingPlanParams(tripId: tripId, memberId: 'm1');
       await expectLater(
         container.read(receiptApprovalProvider(tripId).notifier).submitDeposit(
               memberId: 'm1',
               memberName: 'An',
               amount: 100000,
+              emotionTag: '🔥',
+              note: 'Thất bại không được lưu',
             ),
         throwsException,
       );
       expect(container.read(receiptApprovalProvider(tripId)).hasError, isTrue);
+      expect(container.read(savingJournalProvider(params)), isEmpty);
+    });
+  });
+
+  group('SavingPlanProvider Tests', () {
+    test('createSavingPlan preserves existing paidAmount and completedInstallments when updating plan', () async {
+      final repo = InMemorySavingRepository();
+      const tripId = 'trip_plan_preserve';
+      const memberId = 'm1';
+      const params = SavingPlanParams(tripId: tripId, memberId: memberId);
+
+      await repo.saveSavingPlan(
+        SavingPlan(
+          id: '${tripId}_$memberId',
+          tripId: tripId,
+          memberId: memberId,
+          memberName: 'Đỗ Đình An',
+          targetAmount: 2000000,
+          paidAmount: 1484000,
+          frequency: SavingFrequency.weekly,
+          installmentAmount: 200000,
+          totalInstallments: 10,
+          completedInstallments: 7,
+          startDate: DateTime(2026, 11, 1),
+          deadlineDate: DateTime(2026, 12, 15),
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [savingRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+
+      final updated = await container.read(savingPlanProvider(params).notifier).createSavingPlan(
+            memberName: 'Đỗ Đình An',
+            targetAmount: 2500000,
+            startDate: DateTime(2026, 11, 27),
+            deadlineDate: DateTime(2026, 12, 27),
+            preferredFrequency: SavingFrequency.weekly,
+          );
+
+      expect(updated.paidAmount, 1484000);
+      expect(updated.completedInstallments, 7);
+      expect(updated.status, SavingPlanStatus.active);
     });
   });
 }

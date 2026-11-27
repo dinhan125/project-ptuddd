@@ -60,6 +60,8 @@ class ReceiptApprovalNotifier extends AsyncNotifier<void> {
     required double amount,
     int installmentIndex = 0,
     DateTime? depositDate,
+    DateTime? termDueDate,
+    SavingFrequency? termFrequency,
     File? receiptImage,
     String? receiptImageUrl,
     String? note,
@@ -81,27 +83,28 @@ class ReceiptApprovalNotifier extends AsyncNotifier<void> {
         status: DepositStatus.pending,
         note: note?.trim().isEmpty == true ? null : note?.trim(),
         emotionTag: emotionTag,
+        termDueDate: termDueDate,
+        termFrequency: termFrequency,
       );
 
       state = const AsyncLoading();
       final result = await AsyncValue.guard(() async {
         await repository.submitDeposit(record, receiptImage: receiptImage);
+        if (emotionTag != null && emotionTag.isNotEmpty) {
+          ref
+              .read(
+                savingJournalProvider(
+                  SavingPlanParams(tripId: _tripId, memberId: memberId),
+                ).notifier,
+              )
+              .saveEntry(
+                isoDate: SavingStreakCalculator.formatIsoDate(effectiveDate),
+                emoji: emotionTag,
+                note: note ?? '',
+              );
+        }
         return record;
       });
-
-      if (emotionTag != null && emotionTag.isNotEmpty) {
-        ref
-            .read(
-              savingJournalProvider(
-                SavingPlanParams(tripId: _tripId, memberId: memberId),
-              ).notifier,
-            )
-            .saveEntry(
-              isoDate: SavingStreakCalculator.formatIsoDate(effectiveDate),
-              emoji: emotionTag,
-              note: note ?? '',
-            );
-      }
 
       if (!ref.mounted) {
         if (result.hasError) {

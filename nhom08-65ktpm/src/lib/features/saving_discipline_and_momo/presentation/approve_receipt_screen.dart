@@ -12,6 +12,7 @@ import '../../../core/widgets/app_status_badge.dart';
 import '../models/deposit_record.dart';
 import '../providers/receipt_approval_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
+import 'widgets/module_notification.dart';
 import 'widgets/module_provider_scope.dart';
 
 /// Màn hình Duyệt Biên Lai Nạp Quỹ (Dành cho Trưởng nhóm / Fund Host).
@@ -63,14 +64,13 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
           );
       if (!mounted) return;
       final formatted = MoMoDeeplinkHelper.formatVnd(record.amount.round());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã xác nhận biên lai của ${record.memberName} (+$formatted)')),
+      ModuleNotification.success(
+        context,
+        'Đã xác nhận biên lai của ${record.memberName} (+$formatted)',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể duyệt biên lai: $e')),
-      );
+      ModuleNotification.error(context, 'Không thể duyệt biên lai: $e');
     } finally {
       if (mounted) {
         setState(() => _processingIds.remove(record.id));
@@ -94,14 +94,10 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
             reason: reason.isEmpty ? null : reason,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã từ chối biên lai của ${record.memberName}')),
-      );
+      ModuleNotification.info(context, 'Đã từ chối biên lai của ${record.memberName}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể từ chối biên lai: $e')),
-      );
+      ModuleNotification.error(context, 'Không thể từ chối biên lai: $e');
     } finally {
       if (mounted) {
         setState(() => _processingIds.remove(record.id));
@@ -112,9 +108,7 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
   void _openFullScreenViewer(DepositRecord record) {
     final imageUrl = record.receiptImageUrl;
     if (imageUrl == null || imageUrl.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giao dịch này chưa đính kèm ảnh biên lai.')),
-      );
+      ModuleNotification.warning(context, 'Giao dịch này chưa đính kèm ảnh biên lai.');
       return;
     }
 
@@ -167,13 +161,6 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
         ),
       ),
     );
-  }
-
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts[parts.length - 2][0]}${parts.last[0]}'.toUpperCase();
   }
 
   String _formatDateTime(DateTime dt) {
@@ -236,12 +223,30 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
             ),
             const SizedBox(height: 16),
             if (filteredList.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 64),
-                child: Center(
-                  child: Text(
-                    'Không có biên lai nào trong mục này.',
-                    style: TextStyle(color: AppColors.onSurfaceVariant),
+              Padding(
+                padding: const EdgeInsets.only(top: 48),
+                child: AppInsetCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.receipt_long_outlined,
+                        size: 36,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Không có biên lai nào trong mục này.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -264,7 +269,7 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                             CircleAvatar(
                               backgroundColor: AppColors.primaryContainer,
                               child: Text(
-                                _initials(record.memberName),
+                                MoMoDeeplinkHelper.formatInitials(record.memberName),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -296,10 +301,16 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                             ),
                             Text(
                               MoMoDeeplinkHelper.formatVnd(record.amount.round()),
-                              style: AppTheme.monoAmount(fontSize: 16, color: AppColors.momo),
+                              style: AppTheme.monoAmount(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.momo,
+                              ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1, color: AppColors.outlineVariantSoft),
                         const SizedBox(height: 12),
 
                         // Khung xem trước ảnh biên lai MoMo
@@ -364,13 +375,33 @@ class _ApproveReceiptContentState extends ConsumerState<_ApproveReceiptContent> 
                         if (record.status == DepositStatus.rejected &&
                             record.rejectionReason != null &&
                             record.rejectionReason!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Lý do từ chối: ${record.rejectionReason}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.onErrorContainer,
-                              fontWeight: FontWeight.w500,
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.errorContainer,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 15,
+                                  color: AppColors.onErrorContainer,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Lý do từ chối: ${record.rejectionReason}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.onErrorContainer,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],

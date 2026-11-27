@@ -234,9 +234,16 @@ class SavingRepositoryImpl implements SavingRepository {
         }
 
         if (planDocRef != null && planSnap != null && planSnap.exists) {
+          final planData = planSnap.data() as Map<String, dynamic>?;
+          final currentPaid = (planData?['paidAmount'] as num?)?.toDouble() ?? 0.0;
+          final targetAmount = (planData?['targetAmount'] as num?)?.toDouble() ?? 0.0;
+          final isPlanCompleted =
+              targetAmount > 0 && (currentPaid + parsedDeposit.amount) >= targetAmount;
+
           transaction.update(planDocRef, {
             'paidAmount': FieldValue.increment(parsedDeposit.amount),
             'completedInstallments': FieldValue.increment(1),
+            if (isPlanCompleted) 'status': 'completed',
           });
         }
 

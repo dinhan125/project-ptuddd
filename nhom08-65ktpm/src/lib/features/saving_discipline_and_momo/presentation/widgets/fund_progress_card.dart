@@ -16,6 +16,7 @@ class FundProgressCard extends StatelessWidget {
     required this.cycleLabel,
     required this.installmentText,
     required this.onDepositPressed,
+    this.nextDepositText,
   });
 
   final double collectedAmount;
@@ -24,6 +25,7 @@ class FundProgressCard extends StatelessWidget {
   final String cycleLabel;
   final String installmentText;
   final VoidCallback onDepositPressed;
+  final String? nextDepositText;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +46,11 @@ class FundProgressCard extends StatelessWidget {
             children: [
               const Text(
                 'Tiến độ Quỹ tích lũy',
-                style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
               if (isCompleted)
                 const AppStatusBadge(
@@ -53,27 +59,39 @@ class FundProgressCard extends StatelessWidget {
                   icon: Icons.celebration,
                 )
               else
-                Text(
-                  '$percent%',
-                  style: AppTheme.monoAmount(fontSize: 15, color: AppColors.onMintContainer),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.mintContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$percent%',
+                    style: AppTheme.monoAmount(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onMintContainer,
+                    ),
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             MoMoDeeplinkHelper.formatVnd(collectedAmount.round()),
-            style: AppTheme.monoAmount(fontSize: 28, fontWeight: FontWeight.w700),
+            style: AppTheme.monoAmount(fontSize: 28, fontWeight: FontWeight.w800),
           ),
+          const SizedBox(height: 2),
           Text(
-            'Mục tiêu: ${MoMoDeeplinkHelper.formatVnd(targetAmount.round())} ($memberCount thành viên)',
-            style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+            'Mục tiêu: ${MoMoDeeplinkHelper.formatVnd(targetAmount.round())} • $memberCount thành viên',
+            style: const TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 8,
+              minHeight: 10,
               backgroundColor: AppColors.surfaceContainerHigh,
               valueColor: const AlwaysStoppedAnimation(AppColors.mint),
             ),
@@ -106,7 +124,7 @@ class FundProgressCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          const Divider(),
+          const Divider(height: 1, color: AppColors.outlineVariantSoft),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -125,6 +143,30 @@ class FundProgressCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (nextDepositText != null && nextDepositText!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.event_available_outlined,
+                            size: 13,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              nextDepositText!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

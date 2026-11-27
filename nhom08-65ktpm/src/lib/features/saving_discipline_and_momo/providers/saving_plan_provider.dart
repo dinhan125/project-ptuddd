@@ -54,11 +54,18 @@ class SavingPlanNotifier
     late SavingPlan createdPlan;
 
     state = await AsyncValue.guard(() async {
+      final repository = ref.read(savingRepositoryProvider);
+      final existing =
+          state.value ?? await repository.getSavingPlan(_params.tripId, _params.memberId);
+      final existingPaid = existing?.paidAmount ?? 0.0;
+      final existingCompleted = existing?.completedInstallments ?? 0;
+
       final calcResult = SavingCalculator.calculateInstallments(
         targetAmount: targetAmount,
         startDate: startDate,
         deadlineDate: deadlineDate,
         preferredFrequency: preferredFrequency,
+        alreadyPaidAmount: existingPaid,
       );
 
       final plan = SavingPlan(
@@ -67,17 +74,18 @@ class SavingPlanNotifier
         memberId: _params.memberId,
         memberName: memberName,
         targetAmount: targetAmount,
-        paidAmount: 0.0,
+        paidAmount: existingPaid,
         frequency: calcResult.frequency,
         installmentAmount: calcResult.installmentAmount,
         totalInstallments: calcResult.totalInstallments,
-        completedInstallments: 0,
+        completedInstallments: existingCompleted,
         startDate: startDate,
         deadlineDate: deadlineDate,
-        status: SavingPlanStatus.active,
+        status: existingPaid >= targetAmount
+            ? SavingPlanStatus.completed
+            : SavingPlanStatus.active,
       );
 
-      final repository = ref.read(savingRepositoryProvider);
       await repository.saveSavingPlan(plan);
       createdPlan = plan;
       return plan;

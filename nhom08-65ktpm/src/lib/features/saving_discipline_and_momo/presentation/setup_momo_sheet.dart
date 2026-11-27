@@ -261,9 +261,13 @@ class _SetupMomoContentState extends ConsumerState<_SetupMomoContent> {
                     onPressed: _isSaving ? null : () => Navigator.pop(context),
                     child: const Text('Hủy', style: TextStyle(color: AppColors.onPrimaryContainer)),
                   ),
-                  const Text(
-                    'Thiết lập Quỹ MoMo',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  const Expanded(
+                    child: Text(
+                      'Thiết lập Quỹ MoMo',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   TextButton(
                     onPressed: _isSaving ? null : _saveConfig,
@@ -298,20 +302,24 @@ class _SetupMomoContentState extends ConsumerState<_SetupMomoContent> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mức đóng đề xuất / người',
-                          style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Tổng 8.450.000đ • 4 thành viên',
-                          style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mức đóng đề xuất / người',
+                            style: TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Tổng 8.450.000đ • 4 thành viên',
+                            style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '${MoMoDeeplinkHelper.formatVnd(perMemberAmount)}/$cycleLabel',
                       style: AppTheme.monoAmount(fontSize: 16, color: AppColors.onPrimaryContainer),

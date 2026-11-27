@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_primary_button.dart';
 import '../../models/momo_fund_config.dart';
 import '../../utils/momo_deeplink_helper.dart';
 import '../../utils/momo_launcher.dart';
+import '../widgets/module_notification.dart';
 
 /// 1-Tap MoMo Payment & Fallback Copy View.
 /// Displays the fund's QR code, phone number, and transfer note with 1-tap copy.
@@ -25,9 +26,7 @@ class MomoPaymentScreen extends StatelessWidget {
 
   void _copyToClipboard(BuildContext context, String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã sao chép $label: $value')),
-    );
+    ModuleNotification.info(context, 'Đã sao chép $label: $value');
   }
 
   Future<void> _launchMoMo(

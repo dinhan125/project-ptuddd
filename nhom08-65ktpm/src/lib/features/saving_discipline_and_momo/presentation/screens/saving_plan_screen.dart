@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/saving_plan.dart';
 import '../../providers/saving_plan_provider.dart';
 import '../../utils/saving_calculator.dart';
+import '../widgets/module_provider_scope.dart';
 
-class SavingPlanScreen extends ConsumerStatefulWidget {
+class SavingPlanScreen extends StatelessWidget {
   final String tripId;
   final String memberId;
   final String memberName;
@@ -22,10 +23,39 @@ class SavingPlanScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SavingPlanScreen> createState() => _SavingPlanScreenState();
+  Widget build(BuildContext context) {
+    return ModuleProviderScope(
+      child: _SavingPlanContent(
+        tripId: tripId,
+        memberId: memberId,
+        memberName: memberName,
+        defaultTargetAmount: defaultTargetAmount,
+        tripDepartureDate: tripDepartureDate,
+      ),
+    );
+  }
 }
 
-class _SavingPlanScreenState extends ConsumerState<SavingPlanScreen> {
+class _SavingPlanContent extends ConsumerStatefulWidget {
+  final String tripId;
+  final String memberId;
+  final String memberName;
+  final double defaultTargetAmount;
+  final DateTime? tripDepartureDate;
+
+  const _SavingPlanContent({
+    required this.tripId,
+    required this.memberId,
+    required this.memberName,
+    required this.defaultTargetAmount,
+    this.tripDepartureDate,
+  });
+
+  @override
+  ConsumerState<_SavingPlanContent> createState() => _SavingPlanContentState();
+}
+
+class _SavingPlanContentState extends ConsumerState<_SavingPlanContent> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _amountController;
   late DateTime _startDate;

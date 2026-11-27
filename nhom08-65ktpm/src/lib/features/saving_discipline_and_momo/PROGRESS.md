@@ -1,7 +1,7 @@
 # 📊 Module 2 Progress Tracker (`saving_discipline_and_momo`)
 **Project:** Travel Buddy (PTUDDD - Group 08 - 65KTPM)  
 **Lead Engineer:** Nguyen Xuan Binh (Member #2 - 64KTPM5)  
-**Branch:** `feat/saving-models-calculator`  
+**Branch:** `feat/nhom08-65ktpm/receipt-approval-progress`  
 
 ---
 
@@ -53,10 +53,20 @@
 - [x] `DailyYouStreakCalendar` & `SavingJournalDialog` wired into `MomoFundScreen`.
 - [x] Static analysis & unit tests verified (`saving_streak_calculator_test.dart`).
 
-## 🔵 Phase 4: Receipt Upload, Host Approval & Fund Progress
-- [ ] Task 4.1: Transfer Receipt Upload to Firebase Storage
-- [ ] Task 4.2: Host Receipt Review & Verification Screen
-- [ ] Task 4.3: Realtime Fund Progress Bar & Leaderboard Card
+## 🟢 Phase 4: Receipt Upload, Host Approval & Fund Progress
+
+| Task | Description | Status | Verification / Artifacts |
+| :--- | :--- | :---: | :--- |
+| **Task 4.1** | Transfer Receipt Upload to Firebase Storage | **COMPLETED** | `DepositReceiptSheet` wired with `image_picker` (camera/gallery), Storage upload & `PENDING` `DepositRecord` submission via `receiptApprovalProvider`: <br>- `presentation/deposit_receipt_sheet.dart`<br>- `providers/receipt_approval_provider.dart` |
+| **Task 4.2** | Host Receipt Review & Verification Screen | **COMPLETED** | `ApproveReceiptScreen` wired with `tripDepositsStreamProvider`, full-screen `InteractiveViewer` receipt zoom, atomic Firestore approval (fund + plan + streak) & rejection reason dialog: <br>- `presentation/approve_receipt_screen.dart`<br>- `models/deposit_record.dart`<br>- `repository/saving_repository_impl.dart` |
+| **Task 4.3** | Realtime Fund Progress Bar & Leaderboard Card | **COMPLETED** | Extracted `FundProgressCard` with 100% completion celebration state and wired `MomoFundScreen` to realtime streams with sorted member leaderboard (zero `MockTripData` dependencies): <br>- `presentation/widgets/fund_progress_card.dart`<br>- `presentation/momo_fund_screen.dart` |
+
+### 🎯 Checkpoint 4 Status: Passed ✅
+- [x] `DepositReceiptSheet` uploads receipt photos to Firebase Storage (`trips/{tripId}/receipts/`) and submits `PENDING` `DepositRecord`s.
+- [x] `ApproveReceiptScreen` displays realtime pending/approved/rejected tabs, full-screen receipt zoom, and atomic approve/reject actions.
+- [x] `SavingRepositoryImpl.updateDepositStatus` atomically increments fund `currentCollectedAmount`, member `paidAmount`, and updates `MemberStreak`.
+- [x] `FundProgressCard` and `MomoFundScreen` render realtime progress, 100% celebration banner, and member leaderboard without `MockTripData`.
+- [x] Static analysis & unit/widget tests verified (`receipt_approval_provider_test.dart`, `phase4_widgets_test.dart`).
 
 ## 🟣 Phase 5: Routing Integration & Quality Polish
 - [ ] Task 5.1: Encapsulate Module Routing Contract

@@ -16,6 +16,7 @@ class DepositRecord {
   final DateTime? approvedAt;
   final String? note;
   final String? emotionTag; // 'happy', 'excited', 'disciplined', 'coffee_cut'
+  final String? rejectionReason;
 
   const DepositRecord({
     required this.id,
@@ -31,6 +32,7 @@ class DepositRecord {
     this.approvedAt,
     this.note,
     this.emotionTag,
+    this.rejectionReason,
   });
 
   factory DepositRecord.fromMap(Map<String, dynamic> map, {String? id}) {
@@ -77,6 +79,7 @@ class DepositRecord {
       approvedAt: parseNullableDate(map['approvedAt']),
       note: map['note'] as String?,
       emotionTag: map['emotionTag'] as String?,
+      rejectionReason: map['rejectionReason'] as String?,
     );
   }
 
@@ -108,6 +111,7 @@ class DepositRecord {
       if (approvedAt != null) 'approvedAt': Timestamp.fromDate(approvedAt!),
       if (note != null) 'note': note,
       if (emotionTag != null) 'emotionTag': emotionTag,
+      if (rejectionReason != null) 'rejectionReason': rejectionReason,
     };
   }
 
@@ -125,6 +129,7 @@ class DepositRecord {
     DateTime? approvedAt,
     String? note,
     String? emotionTag,
+    String? rejectionReason,
   }) {
     return DepositRecord(
       id: id ?? this.id,
@@ -140,6 +145,7 @@ class DepositRecord {
       approvedAt: approvedAt ?? this.approvedAt,
       note: note ?? this.note,
       emotionTag: emotionTag ?? this.emotionTag,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
 }

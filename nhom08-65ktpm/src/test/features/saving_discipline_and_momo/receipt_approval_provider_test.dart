@@ -49,6 +49,24 @@ void main() {
       expect(restored.status, DepositStatus.rejected);
       expect(restored.rejectionReason, 'Ảnh bị mờ mã giao dịch');
     });
+
+    test('round-trips termDueDate and termFrequency through toMap and fromMap', () {
+      final record = DepositRecord(
+        id: 'dep_term_snap',
+        tripId: 'trip_1',
+        memberId: 'm1',
+        memberName: 'Nguyễn Xuân Bình',
+        amount: 212000,
+        installmentIndex: 2,
+        depositDate: DateTime(2026, 11, 14),
+        termDueDate: DateTime(2026, 11, 15),
+        termFrequency: SavingFrequency.weekly,
+      );
+
+      final restored = DepositRecord.fromMap(record.toMap(), id: record.id);
+      expect(restored.termDueDate, DateTime(2026, 11, 15));
+      expect(restored.termFrequency, SavingFrequency.weekly);
+    });
   });
 
   group('ReceiptApprovalProvider & Repository Tests', () {

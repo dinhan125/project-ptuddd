@@ -15,12 +15,14 @@ import '../models/saving_plan.dart';
 import '../providers/momo_fund_provider.dart';
 import '../providers/receipt_approval_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
+import '../utils/saving_streak_calculator.dart';
 import 'approve_receipt_screen.dart';
 import 'deposit_receipt_sheet.dart';
 import 'screens/momo_payment_screen.dart';
 import 'screens/saving_plan_screen.dart';
 import 'setup_momo_sheet.dart';
 import 'widgets/daily_you_streak_calendar.dart';
+import 'widgets/deposit_due_warning_banner.dart';
 import 'widgets/fund_progress_card.dart';
 import 'widgets/module_provider_scope.dart';
 
@@ -143,6 +145,12 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     final amount = (memberPlan != null && memberPlan.installmentAmount > 0)
         ? memberPlan.installmentAmount
         : 212000.0;
+    final termDueDate = memberPlan != null
+        ? SavingStreakCalculator.termDueDateForInstallment(
+            plan: memberPlan,
+            installmentIndex: nextInstallment,
+          )
+        : null;
 
     await showModalBottomSheet<bool>(
       context: context,
@@ -156,6 +164,8 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         amount: amount,
         installmentIndex: nextInstallment,
         cycleLabel: cycleLabel,
+        termDueDate: termDueDate,
+        termFrequency: memberPlan?.frequency,
         momoLink: fundConfig?.momoFundDeeplink,
         phoneNumber: fundConfig?.momoPhoneNumber,
         qrData: fundConfig?.qrCodeUrl,
@@ -212,6 +222,23 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
     final installmentText = (memberPlan != null && memberPlan.installmentAmount > 0)
         ? '${MoMoDeeplinkHelper.formatVnd(memberPlan.installmentAmount.round())} / kỳ'
         : 'Chạm Nộp biên lai để đóng quỹ';
+    final currentMemberDeposits =
+        deposits.where((d) => d.memberId == widget.memberId).toList();
+    final depositReminder = memberPlan != null
+        ? SavingStreakCalculator.evaluateTodayDepositWarning(
+            plan: memberPlan,
+            deposits: currentMemberDeposits,
+          )
+        : null;
+    final nextIncoming = memberPlan != null
+        ? SavingStreakCalculator.nextIncomingDeposit(
+            plan: memberPlan,
+            deposits: currentMemberDeposits,
+          )
+        : null;
+    final nextDepositText = nextIncoming != null
+        ? 'Kỳ tới: ${SavingStreakCalculator.formatIncomingDepositDate(nextIncoming)}'
+        : null;
 
     final streakByMember = {for (final s in streaks) s.memberId: s};
     plans.sort((a, b) {
@@ -367,6 +394,17 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
             const SizedBox(height: 16),
           ],
 
+          if (depositReminder != null && depositReminder.shouldWarn) ...[
+            DepositDueWarningBanner(
+              reminder: depositReminder,
+              onDepositTap: () => _openDepositSheet(
+                fundConfig: fundConfig,
+                memberPlan: memberPlan,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // 3. Thẻ Tiến độ Gây dựng Quỹ & Kỳ đóng quỹ hiện tại
           FundProgressCard(
             collectedAmount: collectedAmount,
@@ -374,6 +412,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
             memberCount: memberCount,
             cycleLabel: cycleLabel,
             installmentText: installmentText,
+            nextDepositText: nextDepositText,
             onDepositPressed: () => _openDepositSheet(
               fundConfig: fundConfig,
               memberPlan: memberPlan,
@@ -385,6 +424,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
           DailyYouStreakCalendar(
             tripId: widget.tripId,
             memberId: widget.memberId,
+            showDepositWarning: false,
           ),
           const SizedBox(height: 24),
 
@@ -422,7 +462,12 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
                       final memberDeposits =
                           deposits.where((d) => d.memberId == plan.memberId).toList();
                       final (badgeText, tone) = _memberCycleBadge(memberDeposits);
-                      final streakCount = streakByMember[plan.memberId]?.currentStreak ?? 0;
+                      final memberStreak = streakByMember[plan.memberId];
+                      final streakCount = SavingStreakCalculator.calculateTermStreak(
+                        plan: plan,
+                        deposits: memberDeposits,
+                        streak: memberStreak,
+                      ).currentStreak;
 
                       return Column(
                         children: [

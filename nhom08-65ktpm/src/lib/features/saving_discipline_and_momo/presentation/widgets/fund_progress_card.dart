@@ -16,6 +16,7 @@ class FundProgressCard extends StatelessWidget {
     required this.cycleLabel,
     required this.installmentText,
     required this.onDepositPressed,
+    this.nextDepositText,
   });
 
   final double collectedAmount;
@@ -24,6 +25,7 @@ class FundProgressCard extends StatelessWidget {
   final String cycleLabel;
   final String installmentText;
   final VoidCallback onDepositPressed;
+  final String? nextDepositText;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +127,30 @@ class FundProgressCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (nextDepositText != null && nextDepositText!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.event_available_outlined,
+                            size: 13,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              nextDepositText!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

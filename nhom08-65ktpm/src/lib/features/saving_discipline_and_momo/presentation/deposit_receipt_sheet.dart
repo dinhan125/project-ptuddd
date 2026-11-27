@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_primary_button.dart';
 import '../../../core/widgets/app_section_header.dart';
+import '../models/saving_plan.dart';
 import '../providers/receipt_approval_provider.dart';
 import '../utils/momo_deeplink_helper.dart';
 import '../utils/momo_launcher.dart';
@@ -28,6 +29,8 @@ class DepositReceiptSheet extends StatelessWidget {
     this.amount = 212000,
     this.installmentIndex = 1,
     this.cycleLabel = 'Kỳ hiện tại',
+    this.termDueDate,
+    this.termFrequency,
     this.momoLink,
     this.phoneNumber,
     this.qrData,
@@ -40,6 +43,8 @@ class DepositReceiptSheet extends StatelessWidget {
   final double amount;
   final int installmentIndex;
   final String cycleLabel;
+  final DateTime? termDueDate;
+  final SavingFrequency? termFrequency;
   final String? momoLink;
   final String? phoneNumber;
   final String? qrData;
@@ -55,6 +60,8 @@ class DepositReceiptSheet extends StatelessWidget {
         amount: amount,
         installmentIndex: installmentIndex,
         cycleLabel: cycleLabel,
+        termDueDate: termDueDate,
+        termFrequency: termFrequency,
         momoLink: momoLink,
         phoneNumber: phoneNumber,
         qrData: qrData,
@@ -72,6 +79,8 @@ class _DepositReceiptContent extends ConsumerStatefulWidget {
     required this.amount,
     required this.installmentIndex,
     required this.cycleLabel,
+    this.termDueDate,
+    this.termFrequency,
     this.momoLink,
     this.phoneNumber,
     this.qrData,
@@ -84,6 +93,8 @@ class _DepositReceiptContent extends ConsumerStatefulWidget {
   final double amount;
   final int installmentIndex;
   final String cycleLabel;
+  final DateTime? termDueDate;
+  final SavingFrequency? termFrequency;
   final String? momoLink;
   final String? phoneNumber;
   final String? qrData;
@@ -173,6 +184,8 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
             memberName: widget.memberName,
             amount: widget.amount,
             installmentIndex: widget.installmentIndex,
+            termDueDate: widget.termDueDate,
+            termFrequency: widget.termFrequency,
             receiptImage: _receiptImage,
             note: _noteCtrl.text,
             emotionTag: _moods[_selectedMood],

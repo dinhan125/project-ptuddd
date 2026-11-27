@@ -60,6 +60,8 @@ class ReceiptApprovalNotifier extends AsyncNotifier<void> {
     required double amount,
     int installmentIndex = 0,
     DateTime? depositDate,
+    DateTime? termDueDate,
+    SavingFrequency? termFrequency,
     File? receiptImage,
     String? receiptImageUrl,
     String? note,
@@ -81,6 +83,8 @@ class ReceiptApprovalNotifier extends AsyncNotifier<void> {
         status: DepositStatus.pending,
         note: note?.trim().isEmpty == true ? null : note?.trim(),
         emotionTag: emotionTag,
+        termDueDate: termDueDate,
+        termFrequency: termFrequency,
       );
 
       state = const AsyncLoading();

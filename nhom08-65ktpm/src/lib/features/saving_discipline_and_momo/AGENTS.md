@@ -102,6 +102,9 @@ flutter test test/features/saving_discipline_and_momo/
 
 # Inspect Git status
 git status
+
+# Update knowledge graph after Module 2 code/doc changes (from saving_discipline_and_momo/)
+/graphify . --update
 ```
 
 ---
@@ -121,4 +124,7 @@ When tasked with wiring logic or implementing a feature slice:
    - No edits outside `saving_discipline_and_momo/` and no hardcoded colors (use `AppColors`).
    - `flutter analyze` in `src/` reports **0 errors** and 0 warnings.
    - Tested on Android emulator / physical device with real Firestore data (no crashes on empty lists or slow network).
-5. **Report Clearly:** Provide file links and verification instructions to the engineer.
+5. **Auto-Update Knowledge Graph (`graphify`):**
+   - After completing any code or documentation changes inside `saving_discipline_and_momo/`, automatically run an incremental graphify update (`/graphify . --update` or `graphify update` using `graphify-out/.graphify_python`) so `graphify-out/` stays in sync with the latest codebase.
+   - Keep `graphify-out/` unstaged in feature commits unless the engineer explicitly asks to commit graph outputs.
+6. **Report Clearly:** Provide file links and verification instructions to the engineer.

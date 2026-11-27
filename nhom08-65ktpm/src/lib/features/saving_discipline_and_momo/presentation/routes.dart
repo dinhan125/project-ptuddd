@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/momo_fund_provider.dart';
 import '../providers/receipt_approval_provider.dart';
+import '../utils/saving_streak_calculator.dart';
 import 'approve_receipt_screen.dart';
 import 'deposit_receipt_sheet.dart';
 import 'momo_fund_screen.dart';
@@ -259,6 +260,13 @@ class _DepositReceiptRouteBody extends ConsumerWidget {
               : 212000,
           installmentIndex: nextInstallment,
           cycleLabel: cycleLabel,
+          termDueDate: plan != null
+              ? SavingStreakCalculator.termDueDateForInstallment(
+                  plan: plan,
+                  installmentIndex: nextInstallment,
+                )
+              : null,
+          termFrequency: plan?.frequency,
           momoLink: config?.momoFundDeeplink,
           phoneNumber: config?.momoPhoneNumber,
           qrData: config?.qrCodeUrl,

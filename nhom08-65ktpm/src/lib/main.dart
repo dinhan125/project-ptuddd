@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/supabase_storage_service.dart';
+import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 
@@ -37,10 +38,7 @@ class TravelBuddyApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Travel Buddy',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
       routerConfig: router,
     );
   }

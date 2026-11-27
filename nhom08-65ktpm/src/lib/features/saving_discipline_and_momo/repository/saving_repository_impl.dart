@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,9 +8,13 @@ import '../models/momo_fund_config.dart';
 import '../models/saving_plan.dart';
 import '../models/deposit_record.dart';
 import '../models/member_streak.dart';
+import 'in_memory_saving_repository.dart';
 import 'saving_repository.dart';
 
 final savingRepositoryProvider = Provider<SavingRepository>((ref) {
+  if (Firebase.apps.isEmpty) {
+    return InMemorySavingRepository();
+  }
   return SavingRepositoryImpl(
     firestore: FirebaseFirestore.instance,
     storage: FirebaseStorage.instance,

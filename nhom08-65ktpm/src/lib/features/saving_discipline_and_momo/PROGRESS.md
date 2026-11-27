@@ -24,10 +24,20 @@
 
 ---
 
-## 🟡 Phase 2: MoMo Group Fund & Camera QR Scanner
-- [ ] Task 2.1: Host MoMo Fund Setup Screen
-- [ ] Task 2.2: Live Camera QR Scanner via `mobile_scanner`
-- [ ] Task 2.3: 1-Tap MoMo Deeplink & Payment View
+## 🟢 Phase 2: MoMo Group Fund & Camera QR Scanner
+
+| Task | Description | Status | Verification / Artifacts |
+| :--- | :--- | :---: | :--- |
+| **Task 2.1** | Host MoMo Fund Setup Screen | **COMPLETED** | `ConsumerStatefulWidget` setup sheet with Riverpod state & gallery QR upload: <br>- `providers/momo_fund_provider.dart`<br>- `presentation/setup_momo_sheet.dart`<br>- `repository/in_memory_saving_repository.dart` |
+| **Task 2.2** | Live Camera QR Scanner via `mobile_scanner` | **COMPLETED** | Camera QR scanner with `permission_handler` & MoMo/VietQR payload parser: <br>- `presentation/screens/momo_qr_scanner_screen.dart`<br>- `utils/momo_deeplink_helper.dart` |
+| **Task 2.3** | 1-Tap MoMo Deeplink & Payment View | **COMPLETED** | Scannable QR display (`qr_flutter`), 1-tap copy, and native MoMo app launcher: <br>- `presentation/screens/momo_payment_screen.dart`<br>- `utils/momo_launcher.dart`<br>- `presentation/momo_fund_screen.dart` |
+
+### 🎯 Checkpoint 2 Status: Passed ✅
+- [x] `MoMoFundNotifier` & `momoFundStreamProvider` implemented with `ref.keepAlive()`, `ref.mounted`, and `AsyncValue.guard()`.
+- [x] Live camera QR scanner (`mobile_scanner`) and gallery QR image decoding (`image_picker`) parse MoMo & VietQR payloads.
+- [x] Payment view (`MomoPaymentScreen`) and `MoMoLauncher` launch MoMo with clipboard + QR fallbacks.
+- [x] Static analysis: `flutter analyze` reports 0 issues (0 errors, 0 warnings).
+- [x] Unit tests: `flutter test test/features/saving_discipline_and_momo/` passes 12/12 tests.
 
 ## 🟠 Phase 3: DailyYou-Style Saving Streak Calendar
 - [ ] Task 3.1: Saving Streak Calculation Logic

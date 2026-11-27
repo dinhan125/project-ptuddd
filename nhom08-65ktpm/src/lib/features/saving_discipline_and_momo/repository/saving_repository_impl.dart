@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/supabase_storage_service.dart';
 import '../models/deposit_record.dart';
 import '../models/member_streak.dart';
 import '../models/momo_fund_config.dart';
@@ -18,19 +18,19 @@ final savingRepositoryProvider = Provider<SavingRepository>((ref) {
   }
   return SavingRepositoryImpl(
     firestore: FirebaseFirestore.instance,
-    storage: FirebaseStorage.instance,
+    storageService: ref.watch(supabaseStorageServiceProvider),
   );
 });
 
 class SavingRepositoryImpl implements SavingRepository {
   final FirebaseFirestore _firestore;
-  final FirebaseStorage _storage;
+  final SupabaseStorageService _storageService;
 
   SavingRepositoryImpl({
     FirebaseFirestore? firestore,
-    FirebaseStorage? storage,
+    SupabaseStorageService? storageService,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+        _storageService = storageService ?? SupabaseStorageService();
 
   // --- Collection references ---
   DocumentReference _fundConfigDoc(String tripId) =>
@@ -109,9 +109,10 @@ class SavingRepositoryImpl implements SavingRepository {
 
     if (receiptImage != null) {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${record.id}.jpg';
-      final storageRef = _storage.ref().child('trips/${record.tripId}/receipts/$fileName');
-      final uploadTask = await storageRef.putFile(receiptImage);
-      imageUrl = await uploadTask.ref.getDownloadURL();
+      imageUrl = await _storageService.uploadFile(
+        path: 'trips/${record.tripId}/receipts/$fileName',
+        file: receiptImage,
+      );
     }
 
     final recordToSave = record.copyWith(receiptImageUrl: imageUrl);

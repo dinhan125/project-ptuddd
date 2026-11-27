@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/supabase_storage_service.dart';
 import '../models/place_plan.dart';
 
 abstract class ItineraryRepository {
@@ -21,14 +21,14 @@ final itineraryRepositoryProvider = Provider<ItineraryRepository>((ref) {
   if (Firebase.apps.isEmpty) return InMemoryItineraryRepository();
   return FirestoreItineraryRepository(
     FirebaseFirestore.instance,
-    FirebaseStorage.instance,
+    ref.watch(supabaseStorageServiceProvider),
   );
 });
 
 class FirestoreItineraryRepository implements ItineraryRepository {
   final FirebaseFirestore firestore;
-  final FirebaseStorage storage;
-  FirestoreItineraryRepository(this.firestore, this.storage);
+  final SupabaseStorageService storageService;
+  FirestoreItineraryRepository(this.firestore, this.storageService);
   CollectionReference<Map<String, dynamic>> _collection(String tripId) =>
       firestore.collection('trips').doc(tripId).collection('place_plans');
 
@@ -69,17 +69,14 @@ class FirestoreItineraryRepository implements ItineraryRepository {
 
   @override
   Future<PlacePlan> checkIn(PlacePlan plan, XFile image) async {
-    final ref = storage.ref().child(
-      'trips/${plan.tripId}/checkins/${plan.id}.jpg',
-    );
-    final task = await ref.putData(
-      await image.readAsBytes(),
-      SettableMetadata(contentType: 'image/jpeg'),
+    final photoUrl = await storageService.uploadBytes(
+      path: 'trips/${plan.tripId}/checkins/${plan.id}.jpg',
+      bytes: await image.readAsBytes(),
     );
     final updated = plan.copyWith(
       isCheckedIn: true,
       checkedInAt: DateTime.now(),
-      checkInPhotoUrl: await task.ref.getDownloadURL(),
+      checkInPhotoUrl: photoUrl,
     );
     await savePlan(updated);
     return updated;

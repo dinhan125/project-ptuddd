@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_primary_button.dart';
+import '../providers/auth_providers.dart';
 
-/// Màn hình Đăng nhập — chuyển trực tiếp từ Stitch (ng_nh_p_travel_buddy).
-class LoginScreen extends StatefulWidget {
+/// Màn hình Đăng nhập — kết nối Firebase Auth (Email/Password & Google Sign-In).
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: '2351170568@e.tlu.edu.vn');
-  final _passwordController = TextEditingController(text: '12345678');
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
@@ -25,18 +27,86 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    // TODO(Module 1): Thay bằng AuthRepository.signInWithEmailAndPassword()
-    context.go('/trips');
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Vui lòng nhập đầy đủ Email và Mật khẩu.');
+      return;
+    }
+
+    final user = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithEmail(email: email, password: password);
+    if (!mounted) return;
+
+    final authState = ref.read(authControllerProvider);
+    if (authState.hasError) {
+      _showMessage(authState.error.toString());
+      return;
+    }
+    if (user != null) {
+      context.go('/trips');
+    }
   }
 
-  void _handleGoogleSignIn() {
-    // TODO(Module 1): Thay bằng AuthRepository.signInWithGoogle()
-    context.go('/trips');
+  Future<void> _handleGoogleSignIn() async {
+    final user =
+        await ref.read(authControllerProvider.notifier).signInWithGoogle();
+    if (!mounted) return;
+
+    final authState = ref.read(authControllerProvider);
+    if (authState.hasError) {
+      _showMessage(authState.error.toString());
+      return;
+    }
+    if (user != null) {
+      context.go('/trips');
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showMessage('Vui lòng nhập Email của bạn trước khi đặt lại mật khẩu.');
+      return;
+    }
+    final sent =
+        await ref.read(authControllerProvider.notifier).sendPasswordReset(email);
+    if (!mounted) return;
+
+    final authState = ref.read(authControllerProvider);
+    if (!sent || authState.hasError) {
+      _showMessage(authState.error?.toString() ?? 'Không thể gửi email đặt lại.');
+      return;
+    }
+    _showMessage('Đã gửi email đặt lại mật khẩu tới $email.');
+  }
+
+  Future<void> _openRegisterSheet() async {
+    final registered = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _RegisterAccountSheet(),
+    );
+    if (registered == true && mounted) {
+      context.go('/trips');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
+    final isLoading = authState.isLoading;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
@@ -89,19 +159,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
                                 child: Row(
                                   children: [
                                     const SizedBox(
                                       width: 80,
                                       child: Text(
                                         'Email',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: TextField(
                                         controller: _emailController,
+                                        enabled: !isLoading,
                                         keyboardType: TextInputType.emailAddress,
                                         decoration: const InputDecoration(
                                           hintText: 'tenban@e.tlu.edu.vn',
@@ -114,19 +191,26 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const Divider(indent: 16),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
                                 child: Row(
                                   children: [
                                     const SizedBox(
                                       width: 80,
                                       child: Text(
                                         'Mật khẩu',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: TextField(
                                         controller: _passwordController,
+                                        enabled: !isLoading,
                                         obscureText: _obscurePassword,
                                         decoration: const InputDecoration(
                                           hintText: 'Nhập mật khẩu',
@@ -142,8 +226,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         size: 20,
                                         color: AppColors.onSurfaceVariant,
                                       ),
-                                      onPressed: () =>
-                                          setState(() => _obscurePassword = !_obscurePassword),
+                                      onPressed: () => setState(
+                                        () => _obscurePassword = !_obscurePassword,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -155,12 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {
-                              // TODO(Module 1): Mở luồng Quên mật khẩu Firebase Auth
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('TODO: Gửi email đặt lại mật khẩu')),
-                              );
-                            },
+                            onPressed: isLoading ? null : _handleForgotPassword,
                             child: const Text(
                               'Quên mật khẩu?',
                               style: TextStyle(
@@ -172,15 +252,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 8),
                         AppPrimaryButton(
-                          label: 'Đăng nhập',
-                          onPressed: _handleLogin,
+                          label: isLoading ? 'Đang đăng nhập...' : 'Đăng nhập',
+                          onPressed: isLoading ? null : _handleLogin,
                         ),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 48,
                           child: OutlinedButton.icon(
-                            onPressed: _handleGoogleSignIn,
-                            icon: const Icon(Icons.g_mobiledata, size: 28, color: AppColors.primary),
+                            onPressed: isLoading ? null : _handleGoogleSignIn,
+                            icon: const Icon(
+                              Icons.g_mobiledata,
+                              size: 28,
+                              color: AppColors.primary,
+                            ),
                             label: const Text(
                               'Tiếp tục với Google',
                               style: TextStyle(
@@ -191,7 +275,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             style: OutlinedButton.styleFrom(
                               backgroundColor: AppColors.surfaceContainer,
-                              side: const BorderSide(color: AppColors.outlineVariantSoft),
+                              side: const BorderSide(
+                                color: AppColors.outlineVariantSoft,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -207,14 +293,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Chưa có tài khoản? ', style: Theme.of(context).textTheme.bodySmall),
+                          Text(
+                            'Chưa có tài khoản? ',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                           GestureDetector(
-                            onTap: () {
-                              // TODO(Module 1): Điều hướng tới màn hình Đăng ký
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('TODO: Mở màn hình Đăng ký tài khoản')),
-                              );
-                            },
+                            onTap: isLoading ? null : _openRegisterSheet,
                             child: const Text(
                               'Đăng ký ngay',
                               style: TextStyle(
@@ -233,6 +317,146 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RegisterAccountSheet extends ConsumerStatefulWidget {
+  const _RegisterAccountSheet();
+
+  @override
+  ConsumerState<_RegisterAccountSheet> createState() =>
+      _RegisterAccountSheetState();
+}
+
+class _RegisterAccountSheetState extends ConsumerState<_RegisterAccountSheet> {
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitRegister() async {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final pass = _passwordCtrl.text;
+    final confirm = _confirmCtrl.text;
+
+    if (name.isEmpty || email.isEmpty || pass.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin.')),
+      );
+      return;
+    }
+    if (pass.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mật khẩu cần tối thiểu 6 ký tự.')),
+      );
+      return;
+    }
+    if (pass != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mật khẩu xác nhận không khớp.')),
+      );
+      return;
+    }
+
+    final user = await ref.read(authControllerProvider.notifier).registerWithEmail(
+          email: email,
+          password: pass,
+          displayName: name,
+        );
+    if (!mounted) return;
+
+    final state = ref.read(authControllerProvider);
+    if (state.hasError || user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(state.error?.toString() ?? 'Đăng ký thất bại.')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Đăng ký tài khoản',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Họ và tên',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Mật khẩu (>= 6 ký tự)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Nhập lại mật khẩu',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          AppPrimaryButton(
+            label: isLoading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản',
+            onPressed: isLoading ? null : _submitRegister,
+          ),
+        ],
       ),
     );
   }

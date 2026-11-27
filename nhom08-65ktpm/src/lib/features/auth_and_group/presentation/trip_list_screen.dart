@@ -1,59 +1,118 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/data/mock_trip_data.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_inset_card.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_status_badge.dart';
+import '../../../models/trip_model.dart';
+import '../providers/auth_providers.dart';
+import '../providers/trip_providers.dart';
+import 'widgets/join_trip_qr_sheet.dart';
 
-/// Màn hình Danh sách chuyến đi — nâng cấp từ Stitch (danh_s_ch_chuy_n_i)
-/// bổ sung Countdown đếm ngược và 2 thanh tiến độ (Quỹ MoMo & Checklist chuẩn bị).
-class TripListScreen extends StatefulWidget {
+/// Màn hình Danh sách chuyến đi — đồng bộ realtime từ Firestore (`tripListProvider`).
+class TripListScreen extends ConsumerStatefulWidget {
   const TripListScreen({super.key});
 
   @override
-  State<TripListScreen> createState() => _TripListScreenState();
+  ConsumerState<TripListScreen> createState() => _TripListScreenState();
 }
 
-class _TripListScreenState extends State<TripListScreen> {
+class _TripListScreenState extends ConsumerState<TripListScreen> {
   int _selectedFilter = 0;
+  String _searchQuery = '';
   final _filters = const ['Tất cả', 'Đang chuẩn bị', 'Sắp tới', 'Đã kết thúc'];
+
+  List<TripModel> _applyFilters(List<TripModel> trips) {
+    final query = _searchQuery.trim().toLowerCase();
+    return trips.where((trip) {
+      if (query.isNotEmpty) {
+        final matchesTitle = trip.title.toLowerCase().contains(query);
+        final matchesDest = trip.destination.toLowerCase().contains(query);
+        if (!matchesTitle && !matchesDest) return false;
+      }
+      switch (_selectedFilter) {
+        case 1:
+          return trip.status == TripStatus.planning;
+        case 2:
+          return trip.status == TripStatus.ongoing ||
+              (trip.status == TripStatus.planning && trip.daysUntilStart() >= 0);
+        case 3:
+          return trip.status == TripStatus.completed;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  void _openJoinQrSheet() {
+    showModalBottomSheet<TripModel>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const JoinTripQrSheet(),
+    );
+  }
+
+  void _openTrip(TripModel trip) {
+    ref.read(selectedTripIdProvider.notifier).select(trip.id);
+    context.go('/trip/checklist');
+  }
+
+  Future<void> _handleSignOut() async {
+    await ref.read(authControllerProvider.notifier).signOut();
+    if (mounted) {
+      context.go('/login');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final fundPercent =
-        (MockTripData.currentSavedFund / MockTripData.totalTargetFund).clamp(0.0, 1.0);
+    final userAsync = ref.watch(authStateProvider);
+    final tripsAsync = ref.watch(tripListProvider);
+    final user = userAsync.asData?.value;
 
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 130,
+        leadingWidth: 140,
         leading: Padding(
           padding: const EdgeInsets.only(left: 16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 15,
-                backgroundColor: AppColors.primaryContainer,
-                child: const Text(
-                  'ĐA',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onPrimaryContainer,
+          child: InkWell(
+            onTap: _handleSignOut,
+            borderRadius: BorderRadius.circular(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 15,
+                  backgroundColor: AppColors.primaryContainer,
+                  child: Text(
+                    user?.initials ?? 'TB',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onPrimaryContainer,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Đình An',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    user?.displayName ?? 'Khách',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         title: const Text('Chuyến đi'),
@@ -61,17 +120,17 @@ class _TripListScreenState extends State<TripListScreen> {
           IconButton(
             tooltip: 'Quét QR tham gia nhóm',
             icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary),
-            onPressed: () {
-              // TODO(Module 1): Mở mobile_scanner quét mã QR mời nhóm
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('TODO(Module 1): Mở trình quét QR tham gia chuyến đi')),
-              );
-            },
+            onPressed: _openJoinQrSheet,
           ),
           IconButton(
             tooltip: 'Tạo chuyến đi mới',
             icon: const Icon(Icons.add, color: AppColors.primary, size: 26),
             onPressed: () => context.push('/trips/create'),
+          ),
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout, color: AppColors.onSurfaceVariant, size: 21),
+            onPressed: _handleSignOut,
           ),
         ],
       ),
@@ -85,8 +144,9 @@ class _TripListScreenState extends State<TripListScreen> {
               color: AppColors.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const TextField(
-              decoration: InputDecoration(
+            child: TextField(
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: const InputDecoration(
                 icon: Icon(Icons.search, color: AppColors.onSurfaceVariant, size: 20),
                 hintText: 'Tìm chuyến đi, địa điểm...',
                 border: InputBorder.none,
@@ -101,7 +161,7 @@ class _TripListScreenState extends State<TripListScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _filters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final active = _selectedFilter == index;
                 return ChoiceChip(
@@ -116,7 +176,9 @@ class _TripListScreenState extends State<TripListScreen> {
                   labelStyle: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: active ? AppColors.onPrimaryContainer : AppColors.onSurfaceVariant,
+                    color: active
+                        ? AppColors.onPrimaryContainer
+                        : AppColors.onSurfaceVariant,
                   ),
                   showCheckmark: false,
                 );
@@ -125,107 +187,221 @@ class _TripListScreenState extends State<TripListScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Chuyến đi đang chuẩn bị (có Countdown + 2 tiến độ)
-          const AppSectionHeader(title: 'Đang chuẩn bị'),
-          GestureDetector(
-            onTap: () => context.go('/trip/checklist'),
-            child: AppInsetCard(
-              borderRadius: 16,
+          tripsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, _) => AppInsetCard(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Text('Không tải được danh sách chuyến đi: $err'),
+            ),
+            data: (trips) {
+              final filtered = _applyFilters(trips);
+              if (filtered.isEmpty) {
+                return AppInsetCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.luggage_outlined,
+                        size: 40,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Chưa có chuyến đi nào',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Bấm dấu + để tạo chuyến đi mới hoặc quét mã QR để tham gia cùng bạn bè.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _openJoinQrSheet,
+                            icon: const Icon(Icons.qr_code_scanner, size: 18),
+                            label: const Text('Quét QR'),
+                          ),
+                          const SizedBox(width: 10),
+                          FilledButton.icon(
+                            onPressed: () => context.push('/trips/create'),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Tạo mới'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final featured = filtered.first;
+              final others = filtered.skip(1).toList();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          MockTripData.tripName,
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const AppStatusBadge(
-                        label: 'Còn ${MockTripData.daysUntilTrip} ngày',
-                        tone: AppBadgeTone.amber,
-                        icon: Icons.timer_outlined,
-                      ),
-                    ],
+                  const AppSectionHeader(title: 'Đang chuẩn bị'),
+                  _FeaturedTripCard(
+                    trip: featured,
+                    onTap: () => _openTrip(featured),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${MockTripData.tripDateRange} • 4 thành viên',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 2 thanh tiến độ song song: Quỹ MoMo & Checklist
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _MiniProgressBox(
-                          label: 'Quỹ MoMo',
-                          valueText: '${(fundPercent * 100).round()}%',
-                          progress: fundPercent,
-                          color: AppColors.momo,
-                        ),
+                  if (others.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    const AppSectionHeader(title: 'Các chuyến đi khác'),
+                    AppInsetCard(
+                      child: Column(
+                        children: List.generate(others.length, (index) {
+                          final trip = others[index];
+                          final daysLeft = trip.daysUntilStart();
+                          final daysLabel = daysLeft >= 0
+                              ? 'Còn $daysLeft ngày'
+                              : 'Đã diễn ra';
+                          return Column(
+                            children: [
+                              ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                leading: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.flight_takeoff,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                title: Text(
+                                  trip.title,
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  '${AppFormatters.formatDateRange(trip.startDate, trip.endDate)} • ${trip.memberIds.length} người • $daysLabel',
+                                ),
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: AppColors.outline,
+                                ),
+                                onTap: () => _openTrip(trip),
+                              ),
+                              if (index < others.length - 1)
+                                const Divider(indent: 72),
+                            ],
+                          );
+                        }),
                       ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: _MiniProgressBox(
-                          label: 'Checklist',
-                          valueText: '67%',
-                          progress: 0.67,
-                          color: AppColors.mint,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const AppStatusBadge(
-                        label: 'Đã liên kết Quỹ MoMo',
-                        tone: AppBadgeTone.momo,
-                        icon: Icons.link,
-                      ),
-                      Text(
-                        MockTripData.formatVnd(MockTripData.totalTargetFund),
-                        style: AppTheme.monoAmount(fontSize: 16, color: AppColors.onSurface),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Chuyến đi sắp tới
-          const AppSectionHeader(title: 'Sắp tới'),
-          AppInsetCard(
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.beach_access, color: AppColors.primary),
-              ),
-              title: const Text(
-                'Phú Quốc Cuối Năm',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: const Text('28/12 – 31/12/2026 • 4 người • Còn 42 ngày'),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.outline),
-              onTap: () => context.go('/trip/checklist'),
-            ),
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FeaturedTripCard extends StatelessWidget {
+  const _FeaturedTripCard({required this.trip, required this.onTap});
+
+  final TripModel trip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fundPercent = trip.fundProgress;
+    final checklistPercent = trip.checklistProgress;
+    final daysLeft = trip.daysUntilStart();
+    final countdownText =
+        daysLeft >= 0 ? 'Còn $daysLeft ngày' : 'Đang / đã đi';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AppInsetCard(
+        borderRadius: 16,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    trip.title,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                AppStatusBadge(
+                  label: countdownText,
+                  tone: AppBadgeTone.amber,
+                  icon: Icons.timer_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${AppFormatters.formatDateRange(trip.startDate, trip.endDate)} • ${trip.memberIds.length} thành viên',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniProgressBox(
+                    label: 'Quỹ MoMo',
+                    valueText: '${(fundPercent * 100).round()}%',
+                    progress: fundPercent,
+                    color: AppColors.momo,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MiniProgressBox(
+                    label: 'Checklist',
+                    valueText: '${(checklistPercent * 100).round()}%',
+                    progress: checklistPercent,
+                    color: AppColors.mint,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AppStatusBadge(
+                  label: 'Mã mời: ${trip.inviteCode}',
+                  tone: AppBadgeTone.momo,
+                  icon: Icons.qr_code_2,
+                ),
+                Text(
+                  AppFormatters.formatVnd(trip.targetBudget),
+                  style: AppTheme.monoAmount(
+                    fontSize: 16,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -259,7 +435,13 @@ class _MiniProgressBox extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
               Text(valueText, style: AppTheme.monoAmount(fontSize: 13, color: color)),
             ],
           ),

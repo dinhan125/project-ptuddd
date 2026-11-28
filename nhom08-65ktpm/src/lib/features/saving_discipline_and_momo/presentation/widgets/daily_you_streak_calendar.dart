@@ -126,10 +126,14 @@ class _DailyYouStreakCalendarState
     final streakAsync = ref.watch(savingStreakStreamProvider(_params));
     final depositsAsync = ref.watch(memberDepositsStreamProvider(_params));
     final plansAsync = ref.watch(tripSavingPlansStreamProvider(widget.tripId));
-    final journals = ref.watch(savingJournalProvider(_params));
+    final localJournals = ref.watch(savingJournalProvider(_params));
 
     final streak = streakAsync.value ??
         MemberStreak(memberId: widget.memberId, tripId: widget.tripId);
+    final journals = {
+      ...streak.journalEntries,
+      ...localJournals,
+    };
     final deposits = depositsAsync.value ?? const <DepositRecord>[];
     final plans = plansAsync.value ?? const <SavingPlan>[];
     final memberPlan = plans.where((p) => p.memberId == widget.memberId).firstOrNull;

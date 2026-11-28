@@ -97,12 +97,17 @@ class MoMoDeeplinkHelper {
     if (lower.startsWith('http://') ||
         lower.startsWith('https://') ||
         lower.startsWith('momo://')) {
+      final parsedUri = Uri.tryParse(raw);
       final phoneMatch = RegExp(r'(0[35789]\d{8})').firstMatch(raw);
       final phone = phoneMatch?.group(1);
+      final validDeeplink =
+          (parsedUri != null && parsedUri.hasAuthority && parsedUri.host.trim().isNotEmpty)
+              ? raw
+              : null;
       return MoMoQrParseResult(
         rawPayload: raw,
         phoneNumber: phone,
-        deeplink: raw,
+        deeplink: validDeeplink,
       );
     }
 

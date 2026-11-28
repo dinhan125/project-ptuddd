@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:travel_buddy/features/saving_discipline_and_momo/models/deposit_record.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/saving_plan.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/approve_receipt_screen.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/deposit_receipt_sheet.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/momo_fund_screen.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/setup_momo_sheet.dart';
@@ -480,6 +482,45 @@ void main() {
       expect(saved!.defaultFrequency, SavingFrequency.monthly);
       expect(saved.suggestedPerMemberAmount, 2000000);
       expect(saved.qrCodeUrl, rawQr);
+    });
+
+    testWidgets('ApproveReceiptScreen configures loadingBuilder & broken-image errorBuilder for Supabase HTTPS URLs', (tester) async {
+      final repo = InMemorySavingRepository();
+      const tripId = 'trip_receipt_img';
+      await repo.submitDeposit(
+        DepositRecord(
+          id: 'dep_https_1',
+          tripId: tripId,
+          memberId: 'm1',
+          memberName: 'Nguyễn Xuân Bình',
+          amount: 200000,
+          depositDate: DateTime.now(),
+          receiptImageUrl: 'https://example.supabase.co/storage/v1/object/public/receipts/test.jpg',
+          status: DepositStatus.pending,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [savingRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(
+            home: ApproveReceiptScreen(
+              tripId: tripId,
+              reviewerId: 'host_1',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final imageWidget = tester.widget<Image>(find.byType(Image).first);
+      expect(imageWidget.loadingBuilder, isNotNull);
+      expect(imageWidget.errorBuilder, isNotNull);
+
+      await tester.pumpAndSettle();
+      // In widget tests without a real HTTP server, network image falls back cleanly to broken_image_outlined.
+      expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
     });
   });
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -115,6 +116,30 @@ void main() {
       expect(parsed.phoneNumber, '0912345678');
       expect(parsed.recipientName, 'NGUYEN BINH');
       expect(parsed.deeplink, 'https://nhantien.momo.vn/0912345678');
+    });
+
+    test('ThousandsDotInputFormatter formats digits with dots and preserves cursor', () {
+      final formatter = ThousandsDotInputFormatter();
+      final res1 = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(
+          text: '1500000',
+          selection: TextSelection.collapsed(offset: 7),
+        ),
+      );
+      expect(res1.text, '1.500.000');
+      expect(res1.selection.baseOffset, 9);
+
+      // Typing a digit after '15' -> cursor stays right after that digit ('15.200.000' -> offset 3)
+      final res2 = formatter.formatEditUpdate(
+        res1,
+        const TextEditingValue(
+          text: '1.5200.000',
+          selection: TextSelection.collapsed(offset: 4),
+        ),
+      );
+      expect(res2.text, '15.200.000');
+      expect(res2.selection.baseOffset, 4);
     });
   });
 }

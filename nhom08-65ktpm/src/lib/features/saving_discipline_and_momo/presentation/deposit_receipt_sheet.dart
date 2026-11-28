@@ -35,6 +35,7 @@ class DepositReceiptSheet extends StatelessWidget {
     this.momoLink,
     this.phoneNumber,
     this.qrData,
+    this.allowAmountEdit = false,
   });
 
   final String fundName;
@@ -49,6 +50,7 @@ class DepositReceiptSheet extends StatelessWidget {
   final String? momoLink;
   final String? phoneNumber;
   final String? qrData;
+  final bool allowAmountEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +68,7 @@ class DepositReceiptSheet extends StatelessWidget {
         momoLink: momoLink,
         phoneNumber: phoneNumber,
         qrData: qrData,
+        allowAmountEdit: allowAmountEdit,
       ),
     );
   }
@@ -85,6 +88,7 @@ class _DepositReceiptContent extends ConsumerStatefulWidget {
     this.momoLink,
     this.phoneNumber,
     this.qrData,
+    this.allowAmountEdit = false,
   });
 
   final String fundName;
@@ -99,6 +103,7 @@ class _DepositReceiptContent extends ConsumerStatefulWidget {
   final String? momoLink;
   final String? phoneNumber;
   final String? qrData;
+  final bool allowAmountEdit;
 
   @override
   ConsumerState<_DepositReceiptContent> createState() => _DepositReceiptContentState();
@@ -106,12 +111,28 @@ class _DepositReceiptContent extends ConsumerStatefulWidget {
 
 class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> {
   final _noteCtrl = TextEditingController(text: 'Nhịn 2 ly trà sữa góp quỹ đúng hạn!');
+  late final TextEditingController _amountCtrl;
   final _moods = const ['🔥', '😎', '🚀', '💪', '🎉'];
   int _selectedMood = 0;
   bool _showQrFallback = false;
   bool _isSubmitting = false;
   File? _receiptImage;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController(
+      text: MoMoDeeplinkHelper.formatDigitsWithDots(widget.amount.round()),
+    );
+  }
+
+  double get _effectiveAmount {
+    if (!widget.allowAmountEdit) return widget.amount;
+    final digits = _amountCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 0.0;
+    return double.tryParse(digits) ?? 0.0;
+  }
 
   Future<void> _launchMoMo(String link, String copySummary) async {
     final launched = await MoMoLauncher.openMoMo(
@@ -175,6 +196,13 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
       return;
     }
 
+    if (_effectiveAmount <= 0) {
+      setState(() {
+        _errorMessage = 'Vui lòng nhập số tiền nạp quỹ hợp lệ (> 0đ)';
+      });
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
@@ -183,7 +211,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
       await ref.read(receiptApprovalProvider(widget.tripId).notifier).submitDeposit(
             memberId: widget.memberId,
             memberName: widget.memberName,
-            amount: widget.amount,
+            amount: _effectiveAmount,
             installmentIndex: widget.installmentIndex,
             termDueDate: widget.termDueDate,
             termFrequency: widget.termFrequency,
@@ -211,6 +239,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _amountCtrl.dispose();
     super.dispose();
   }
 
@@ -220,7 +249,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
       tripId: widget.tripId,
       memberName: widget.memberName,
     );
-    final formattedAmount = MoMoDeeplinkHelper.formatVnd(widget.amount.round());
+    final formattedAmount = MoMoDeeplinkHelper.formatVnd(_effectiveAmount.round());
     final effectiveLink = (widget.momoLink?.isNotEmpty == true)
         ? widget.momoLink!
         : (widget.phoneNumber?.isNotEmpty == true
@@ -321,6 +350,25 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                       formattedAmount,
                       style: AppTheme.monoAmount(fontSize: 30, fontWeight: FontWeight.w800),
                     ),
+                    if (widget.allowAmountEdit) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _amountCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [ThousandsDotInputFormatter()],
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: 'Số tiền nộp quỹ (VNĐ)',
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.outlineVariantSoft),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -391,7 +439,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                           child: OutlinedButton.icon(
                             onPressed: () {
                               Clipboard.setData(
-                                ClipboardData(text: '${widget.amount.round()} - $transferNote'),
+                                ClipboardData(text: '${_effectiveAmount.round()} - $transferNote'),
                               );
                               ModuleNotification.info(
                                 context,

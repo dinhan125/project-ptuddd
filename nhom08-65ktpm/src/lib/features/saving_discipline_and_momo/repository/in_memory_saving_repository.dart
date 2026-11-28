@@ -378,8 +378,51 @@ class InMemorySavingRepository implements SavingRepository {
 
   @override
   Future<void> saveFundConfig(MoMoFundConfig config) async {
-    _fundConfigs[config.tripId] = config;
-    _fundController(config.tripId).add(config);
+    final members = _tripMembers[config.tripId];
+    final memberCount = members?.length ?? 0;
+    final effectiveConfig = (memberCount > 0 &&
+            config.targetTotalAmount > 0 &&
+            config.suggestedPerMemberAmount != null)
+        ? config.copyWith(
+            suggestedPerMemberAmount: MoMoFundConfig.computeSuggestedPerMemberAmount(
+              targetTotalAmount: config.targetTotalAmount,
+              memberCount: memberCount,
+              frequency: config.defaultFrequency,
+            ),
+          )
+        : config;
+
+    _fundConfigs[effectiveConfig.tripId] = effectiveConfig;
+    _fundController(effectiveConfig.tripId).add(effectiveConfig);
+
+    final perMemberTotal = (memberCount > 0 && effectiveConfig.targetTotalAmount > 0)
+        ? (effectiveConfig.targetTotalAmount / memberCount).round()
+        : 0;
+
+    if (perMemberTotal > 0 && members != null) {
+      for (var i = 0; i < members.length; i++) {
+        members[i] = members[i].copyWith(targetContribution: perMemberTotal);
+      }
+      _tripMembersController(effectiveConfig.tripId)
+          .add(List.unmodifiable(members));
+    }
+
+    final tripPlans = _plansForTrip(effectiveConfig.tripId);
+    if (tripPlans.isNotEmpty) {
+      for (final plan in tripPlans) {
+        final updatedPlan = MoMoFundConfig.applyGroupConfigToPlan(
+          plan: plan,
+          perMemberTotalTarget:
+              perMemberTotal > 0 ? perMemberTotal.toDouble() : plan.targetAmount,
+          defaultFrequency: effectiveConfig.defaultFrequency,
+        );
+        final key = '${plan.tripId}_${plan.memberId}';
+        _savingPlans[key] = updatedPlan;
+        _planController(key).add(updatedPlan);
+      }
+      _tripPlansController(effectiveConfig.tripId)
+          .add(List.unmodifiable(_plansForTrip(effectiveConfig.tripId)));
+    }
   }
 
   @override

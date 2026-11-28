@@ -111,6 +111,8 @@ class _TermCoverageSnapshot {
   final Set<String> crossTermCoveredAll;
   final Set<String> activeDepositDates;
   final bool hasDepositToday;
+  final double effectiveTotalSaved;
+  final List<double> cumulativeTargets;
 
   const _TermCoverageSnapshot({
     required this.plan,
@@ -125,12 +127,22 @@ class _TermCoverageSnapshot {
     required this.crossTermCoveredAll,
     required this.activeDepositDates,
     required this.hasDepositToday,
+    required this.effectiveTotalSaved,
+    required this.cumulativeTargets,
   });
 
   bool isTermCovered(int index) {
     final termIndex = index + 1;
+    if (termIndex <= plan.completedInstallments) {
+      return true;
+    }
     if ((approvedByTerm[termIndex]?.isNotEmpty ?? false) ||
         pendingTerms.contains(termIndex)) {
+      return true;
+    }
+    if (index < cumulativeTargets.length &&
+        effectiveTotalSaved > 0 &&
+        effectiveTotalSaved + 1e-6 >= cumulativeTargets[index]) {
       return true;
     }
     if (plan.frequency == SavingFrequency.daily) {
@@ -509,6 +521,242 @@ class SavingStreakCalculator {
     return null;
   }
 
+  static ({DateTime start, DateTime due}) _groupPeriodWindow({
+    required DateTime anchorDay,
+    required SavingFrequency frequency,
+    required int periodIndex,
+    DateTime? deadlineDay,
+  }) {
+    late final DateTime start;
+    late final DateTime rawDue;
+    switch (frequency) {
+      case SavingFrequency.daily:
+        rawDue = anchorDay.add(Duration(days: periodIndex - 1));
+        start = rawDue;
+      case SavingFrequency.weekly:
+        start = anchorDay.add(Duration(days: (periodIndex - 1) * 7));
+        rawDue = anchorDay.add(Duration(days: periodIndex * 7));
+      case SavingFrequency.monthly:
+        start = periodIndex == 1
+            ? anchorDay
+            : SavingCalculator.addCalendarMonths(anchorDay, periodIndex - 1)
+                .add(const Duration(days: 1));
+        rawDue = SavingCalculator.addCalendarMonths(anchorDay, periodIndex);
+    }
+    final clampedDue = (periodIndex == 1 &&
+            deadlineDay != null &&
+            rawDue.isAfter(deadlineDay) &&
+            !deadlineDay.isBefore(start))
+        ? deadlineDay
+        : rawDue;
+    return (start: start, due: clampedDue);
+  }
+
+  static ({
+    TodayDepositReminder reminder,
+    IncomingDepositInfo? nextIncoming,
+  }) _evaluateGroupDefaultSchedule({
+    required SavingFrequency frequency,
+    required double amount,
+    required DateTime anchorDate,
+    required List<DepositRecord> deposits,
+    required double totalTargetAmount,
+    required double alreadySavedAmount,
+    DateTime? deadlineDate,
+    DateTime? today,
+  }) {
+    if (amount <= 0) {
+      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
+    }
+    final todayDay = _toLocalDay(today ?? DateTime.now());
+    final deadlineDay = deadlineDate != null ? _toLocalDay(deadlineDate) : null;
+    if (deadlineDay != null && todayDay.isAfter(deadlineDay)) {
+      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
+    }
+
+    final activeDeposits = deposits
+        .where((d) => d.status != DepositStatus.rejected)
+        .toList();
+    final approvedSum = activeDeposits
+        .where((d) => d.status == DepositStatus.approved)
+        .fold<double>(0.0, (s, d) => s + d.amount);
+    final pendingSum = activeDeposits
+        .where((d) => d.status == DepositStatus.pending)
+        .fold<double>(0.0, (s, d) => s + d.amount);
+    final effectiveTotalSaved =
+        (alreadySavedAmount > approvedSum ? alreadySavedAmount : approvedSum) +
+            pendingSum;
+
+    if (totalTargetAmount > 0 && effectiveTotalSaved + 1e-6 >= totalTargetAmount) {
+      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
+    }
+
+    bool isDayCoveredByDepositTerm(DateTime day) {
+      for (final d in activeDeposits) {
+        final depDay = _toLocalDay(d.depositDate);
+        final termFreq = d.termFrequency ?? frequency;
+        final spanDays = _termSpanDays(termFreq);
+        if (termFreq == SavingFrequency.daily) {
+          if (_isSameDay(depDay, day)) return true;
+        } else if (d.termDueDate != null) {
+          final dueDay = _toLocalDay(d.termDueDate!);
+          final termStart = dueDay.subtract(Duration(days: spanDays - 1));
+          if (!day.isBefore(termStart) && !day.isAfter(dueDay)) {
+            return true;
+          }
+        } else if (termFreq == SavingFrequency.weekly) {
+          final endDay = depDay.add(const Duration(days: 6));
+          if (!day.isBefore(depDay) && !day.isAfter(endDay)) {
+            return true;
+          }
+        } else {
+          final monthEnd = SavingCalculator.addCalendarMonths(depDay, 1);
+          if (!day.isBefore(depDay) && day.isBefore(monthEnd)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    final rawAnchor = _toLocalDay(anchorDate);
+    final anchorDay = (frequency == SavingFrequency.daily &&
+            todayDay.isBefore(rawAnchor))
+        ? todayDay
+        : rawAnchor;
+    final paidTermsCount = (effectiveTotalSaved + 1e-6) ~/ amount;
+
+    var overdueCount = 0;
+    ({int index, DateTime due})? firstOverdue;
+    ({int index, DateTime due})? dueToday;
+    IncomingDepositInfo? nextIncoming;
+
+    for (var period = 1; period <= 3650; period++) {
+      final window = _groupPeriodWindow(
+        anchorDay: anchorDay,
+        frequency: frequency,
+        periodIndex: period,
+        deadlineDay: deadlineDay,
+      );
+      if (deadlineDay != null && window.due.isAfter(deadlineDay)) {
+        break;
+      }
+
+      final coveredByRecord = activeDeposits.any((d) {
+            final depDay = _toLocalDay(d.depositDate);
+            return (!depDay.isBefore(window.start) &&
+                !depDay.isAfter(window.due));
+          }) ||
+          isDayCoveredByDepositTerm(window.due) ||
+          (frequency == SavingFrequency.daily &&
+              isDayCoveredByDepositTerm(todayDay) &&
+              _isSameDay(window.due, todayDay));
+      final covered = (paidTermsCount >= period) || coveredByRecord;
+
+      if (window.due.isBefore(todayDay)) {
+        if (!covered) {
+          overdueCount += 1;
+          firstOverdue ??= (index: period, due: window.due);
+        }
+        continue;
+      }
+
+      if (!covered && _isSameDay(window.due, todayDay)) {
+        dueToday ??= (index: period, due: window.due);
+      }
+
+      if (!covered) {
+        nextIncoming = IncomingDepositInfo(
+          installmentIndex: period,
+          dueDate: window.due,
+          amount: amount,
+          daysUntilDue: _calendarDayDiff(todayDay, window.due),
+          frequency: frequency,
+        );
+        break;
+      }
+
+      if (period > 1 && window.due.isAfter(todayDay)) {
+        // Skip forward past pre-paid future cycles up to the first unpaid one.
+        continue;
+      }
+    }
+
+    final TodayDepositReminder reminder;
+    if (overdueCount > 0 && firstOverdue != null) {
+      reminder = TodayDepositReminder(
+        shouldWarn: true,
+        urgency: DepositReminderUrgency.overdue,
+        frequency: frequency,
+        installmentIndex: firstOverdue.index,
+        dueDate: firstOverdue.due,
+        amountDue: amount,
+        overdueTermCount: overdueCount,
+      );
+    } else if (dueToday != null) {
+      reminder = TodayDepositReminder(
+        shouldWarn: true,
+        urgency: DepositReminderUrgency.dueToday,
+        frequency: frequency,
+        installmentIndex: dueToday.index,
+        dueDate: dueToday.due,
+        amountDue: amount,
+      );
+    } else {
+      reminder = TodayDepositReminder.none(frequency);
+    }
+
+    return (reminder: reminder, nextIncoming: nextIncoming);
+  }
+
+  /// Evaluates whether the member should be warned to deposit today from the
+  /// host's group default schedule when [SavingPlan] is not yet created.
+  static TodayDepositReminder evaluateGroupDefaultDepositWarning({
+    required SavingFrequency frequency,
+    required double amount,
+    required DateTime anchorDate,
+    required List<DepositRecord> deposits,
+    double totalTargetAmount = 0.0,
+    double alreadySavedAmount = 0.0,
+    DateTime? deadlineDate,
+    DateTime? today,
+  }) {
+    return _evaluateGroupDefaultSchedule(
+      frequency: frequency,
+      amount: amount,
+      anchorDate: anchorDate,
+      deposits: deposits,
+      totalTargetAmount: totalTargetAmount,
+      alreadySavedAmount: alreadySavedAmount,
+      deadlineDate: deadlineDate,
+      today: today,
+    ).reminder;
+  }
+
+  /// Computes the next incoming deposit info from the host's group default cycle
+  /// when the member has not created a personal [SavingPlan] yet.
+  static IncomingDepositInfo? nextIncomingDepositFromGroupDefault({
+    required SavingFrequency frequency,
+    required double amount,
+    required DateTime anchorDate,
+    required List<DepositRecord> deposits,
+    double totalTargetAmount = 0.0,
+    double alreadySavedAmount = 0.0,
+    DateTime? deadlineDate,
+    DateTime? today,
+  }) {
+    return _evaluateGroupDefaultSchedule(
+      frequency: frequency,
+      amount: amount,
+      anchorDate: anchorDate,
+      deposits: deposits,
+      totalTargetAmount: totalTargetAmount,
+      alreadySavedAmount: alreadySavedAmount,
+      deadlineDate: deadlineDate,
+      today: today,
+    ).nextIncoming;
+  }
+
   /// Formats a human-readable countdown label for an [IncomingDepositInfo].
   static String formatIncomingDepositDate(IncomingDepositInfo info) {
     final dd = info.dueDate.day.toString().padLeft(2, '0');
@@ -558,6 +806,26 @@ class SavingStreakCalculator {
             .where((d) => d.memberId.isEmpty || d.memberId == plan.memberId)
             .toList();
 
+    final approvedSum = memberDeposits
+        .where((d) => d.status == DepositStatus.approved)
+        .fold<double>(0.0, (s, d) => s + d.amount);
+    final pendingSum = memberDeposits
+        .where((d) => d.status == DepositStatus.pending)
+        .fold<double>(0.0, (s, d) => s + d.amount);
+    final effectiveTotalSaved =
+        (plan.paidAmount > approvedSum ? plan.paidAmount : approvedSum) +
+            pendingSum;
+    if (plan.targetAmount > 0 && effectiveTotalSaved + 1e-6 >= plan.targetAmount) {
+      return null;
+    }
+
+    final cumulativeTargets = <double>[];
+    var runningTarget = 0.0;
+    for (final item in schedule) {
+      runningTarget += item.amount;
+      cumulativeTargets.add(runningTarget);
+    }
+
     final approvedByTerm = _mapApprovedDepositsToTerms(
       plan: plan,
       schedule: schedule,
@@ -606,6 +874,8 @@ class SavingStreakCalculator {
       crossTermCoveredAll: crossTermCoveredAll,
       activeDepositDates: activeDepositDates,
       hasDepositToday: hasDepositToday,
+      effectiveTotalSaved: effectiveTotalSaved,
+      cumulativeTargets: cumulativeTargets,
     );
   }
 
@@ -618,10 +888,40 @@ class SavingStreakCalculator {
     final pendingTerms = <int>{};
     for (final d in deposits) {
       if (d.status != DepositStatus.pending) continue;
-      if (d.termFrequency != null && d.termFrequency != plan.frequency) {
+      final depDay = _toLocalDay(d.depositDate);
+      final isDifferentFrequency =
+          d.termFrequency != null && d.termFrequency != plan.frequency;
+      if (isDifferentFrequency) {
+        if (d.termDueDate != null) {
+          final spanDays = _termSpanDays(d.termFrequency!);
+          final dueDay = _toLocalDay(d.termDueDate!);
+          final termStart = dueDay.subtract(Duration(days: spanDays - 1));
+          for (var i = 0; i < schedule.length; i++) {
+            final termPrevDue = i == 0
+                ? planStart.subtract(const Duration(days: 1))
+                : _toLocalDay(schedule[i - 1].dueDate);
+            final termWindowStart = termPrevDue.add(const Duration(days: 1));
+            final termDue = _toLocalDay(schedule[i].dueDate);
+            if (!termWindowStart.isBefore(planStart) &&
+                !dueDay.isBefore(termWindowStart) &&
+                !termStart.isAfter(termDue)) {
+              pendingTerms.add(i + 1);
+            }
+          }
+          continue;
+        }
+        if (!depDay.isBefore(planStart)) {
+          final matched = _matchTermWindow(
+            depDay: depDay,
+            planStart: planStart,
+            schedule: schedule,
+          );
+          if (matched != null) {
+            pendingTerms.add(matched);
+          }
+        }
         continue;
       }
-      final depDay = _toLocalDay(d.depositDate);
       if (depDay.isBefore(planStart)) continue;
       final termIndex = _resolveTermIndexForSamePlan(
         deposit: d,
@@ -717,6 +1017,9 @@ class SavingStreakCalculator {
     Map<String, ({String emoji, String note})> journals = const {},
     SavingPlan? plan,
     DateTime? planStartDate,
+    IncomingDepositInfo? nextIncomingOverride,
+    DateTime? groupAnchorDate,
+    DateTime? scheduleDeadlineDate,
     DateTime? today,
   }) {
     final todayDay = _toLocalDay(today ?? DateTime.now());
@@ -762,17 +1065,17 @@ class SavingStreakCalculator {
         : null;
     final nextIncoming = plan != null
         ? nextIncomingDeposit(plan: plan, deposits: deposits, today: todayDay)
-        : null;
+        : nextIncomingOverride;
     final nextDueIso =
         nextIncoming != null ? formatIsoDate(nextIncoming.dueDate) : null;
     final scheduledMetaByIso = <String, ({int index, double amount})>{};
+    if (nextIncoming != null && nextDueIso != null) {
+      scheduledMetaByIso[nextDueIso] = (
+        index: nextIncoming.installmentIndex,
+        amount: nextIncoming.amount,
+      );
+    }
     if (coverage != null && plan != null) {
-      if (nextIncoming != null && nextDueIso != null) {
-        scheduledMetaByIso[nextDueIso] = (
-          index: nextIncoming.installmentIndex,
-          amount: nextIncoming.amount,
-        );
-      }
       if (plan.frequency != SavingFrequency.daily) {
         for (var i = 0; i < coverage.schedule.length; i++) {
           final item = coverage.schedule[i];
@@ -781,6 +1084,42 @@ class SavingStreakCalculator {
           scheduledMetaByIso[formatIsoDate(dueDay)] = (
             index: item.index,
             amount: item.amount,
+          );
+        }
+      }
+    } else if (plan == null &&
+        nextIncoming != null &&
+        nextIncoming.frequency != SavingFrequency.daily) {
+      final monthEnd = DateTime(month.year, month.month + 1, 0);
+      final deadlineDay =
+          scheduleDeadlineDate != null ? _toLocalDay(scheduleDeadlineDate) : null;
+      final anchorDay = groupAnchorDate != null
+          ? _toLocalDay(groupAnchorDate)
+          : _toLocalDay(nextIncoming.dueDate);
+      var termIndex = groupAnchorDate != null
+          ? nextIncoming.installmentIndex
+          : 0;
+      var cursor = _toLocalDay(nextIncoming.dueDate);
+      while (true) {
+        termIndex += 1;
+        if (groupAnchorDate != null) {
+          cursor = _groupPeriodWindow(
+            anchorDay: anchorDay,
+            frequency: nextIncoming.frequency,
+            periodIndex: termIndex,
+            deadlineDay: deadlineDay,
+          ).due;
+        } else if (nextIncoming.frequency == SavingFrequency.weekly) {
+          cursor = cursor.add(const Duration(days: 7));
+        } else {
+          cursor = SavingCalculator.addCalendarMonths(anchorDay, termIndex);
+        }
+        if (cursor.isAfter(monthEnd)) break;
+        if (deadlineDay != null && cursor.isAfter(deadlineDay)) break;
+        if (!cursor.isBefore(todayDay)) {
+          scheduledMetaByIso[formatIsoDate(cursor)] = (
+            index: termIndex,
+            amount: nextIncoming.amount,
           );
         }
       }
@@ -994,7 +1333,10 @@ class SavingStreakCalculator {
   }) {
     final filled = <String>{};
     for (final d in deposits) {
-      if (d.status != DepositStatus.approved) continue;
+      if (d.status != DepositStatus.approved &&
+          d.status != DepositStatus.pending) {
+        continue;
+      }
       if (d.termFrequency == null || d.termFrequency == plan.frequency) continue;
       if (d.termDueDate == null) continue;
 

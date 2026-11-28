@@ -100,7 +100,58 @@ class SavingRepositoryImpl implements SavingRepository {
 
   @override
   Future<void> saveFundConfig(MoMoFundConfig config) async {
-    await _fundConfigDoc(config.tripId).set(config.toMap(), SetOptions(merge: true));
+    final membersSnap = await _tripDoc(config.tripId).collection('members').get();
+    final plansSnap = await _savingPlansColl(config.tripId).get();
+
+    final memberCount = membersSnap.docs.length;
+    final effectiveConfig = (memberCount > 0 &&
+            config.targetTotalAmount > 0 &&
+            config.suggestedPerMemberAmount != null)
+        ? config.copyWith(
+            suggestedPerMemberAmount: MoMoFundConfig.computeSuggestedPerMemberAmount(
+              targetTotalAmount: config.targetTotalAmount,
+              memberCount: memberCount,
+              frequency: config.defaultFrequency,
+            ),
+          )
+        : config;
+
+    final batch = _firestore.batch();
+    batch.set(_fundConfigDoc(effectiveConfig.tripId), effectiveConfig.toMap());
+
+    final perMemberTotal = (memberCount > 0 && effectiveConfig.targetTotalAmount > 0)
+        ? (effectiveConfig.targetTotalAmount / memberCount).round()
+        : 0;
+
+    if (perMemberTotal > 0) {
+      for (final memberDoc in membersSnap.docs) {
+        batch.update(memberDoc.reference, {
+          'targetContribution': perMemberTotal,
+        });
+      }
+    }
+
+    for (final planDoc in plansSnap.docs) {
+      final plan = SavingPlan.fromMap(
+        planDoc.data() as Map<String, dynamic>,
+        id: planDoc.id,
+      );
+      final updatedPlan = MoMoFundConfig.applyGroupConfigToPlan(
+        plan: plan,
+        perMemberTotalTarget:
+            perMemberTotal > 0 ? perMemberTotal.toDouble() : plan.targetAmount,
+        defaultFrequency: effectiveConfig.defaultFrequency,
+      );
+      batch.update(planDoc.reference, {
+        'targetAmount': updatedPlan.targetAmount,
+        'frequency': updatedPlan.frequency.name,
+        'installmentAmount': updatedPlan.installmentAmount,
+        'totalInstallments': updatedPlan.totalInstallments,
+        'status': updatedPlan.status.name,
+      });
+    }
+
+    await batch.commit();
   }
 
   // --- Saving Plan ---

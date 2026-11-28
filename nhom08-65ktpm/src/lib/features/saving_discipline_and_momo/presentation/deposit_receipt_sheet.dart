@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -116,6 +117,7 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
   int _selectedMood = 0;
   bool _showQrFallback = false;
   bool _isSubmitting = false;
+  bool _cameraPermanentlyDenied = false;
   File? _receiptImage;
   String? _errorMessage;
 
@@ -168,6 +170,11 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
     );
     if (source == null || !mounted) return;
 
+    if (source == ImageSource.camera) {
+      final hasPermission = await _ensureCameraPermission();
+      if (!hasPermission || !mounted) return;
+    }
+
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -179,12 +186,47 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
         setState(() {
           _receiptImage = File(picked.path);
           _errorMessage = null;
+          _cameraPermanentlyDenied = false;
         });
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'camera_access_denied') {
+        setState(() {
+          _cameraPermanentlyDenied = true;
+          _errorMessage =
+              'Cần quyền truy cập camera để chụp ảnh biên lai. Vui lòng bật quyền Camera trong Cài đặt.';
+        });
+      } else {
+        setState(() => _errorMessage = 'Không thể chọn ảnh biên lai: ${e.message ?? e.code}');
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Không thể chọn ảnh biên lai: $e');
     }
+  }
+
+  Future<bool> _ensureCameraPermission() async {
+    var status = await Permission.camera.status;
+    if (!status.isGranted &&
+        !status.isPermanentlyDenied &&
+        !status.isRestricted) {
+      status = await Permission.camera.request();
+    }
+    if (!mounted) return false;
+    if (status.isGranted) {
+      setState(() => _cameraPermanentlyDenied = false);
+      return true;
+    }
+
+    final permDenied = status.isPermanentlyDenied || status.isRestricted;
+    setState(() {
+      _cameraPermanentlyDenied = permDenied;
+      _errorMessage = permDenied
+          ? 'Quyền camera đã bị từ chối vĩnh viễn. Vui lòng bật quyền Camera trong Cài đặt ứng dụng.'
+          : 'Cần quyền truy cập camera để chụp ảnh biên lai.';
+    });
+    return false;
   }
 
   Future<void> _submitReceipt() async {
@@ -664,6 +706,18 @@ class _DepositReceiptContentState extends ConsumerState<_DepositReceiptContent> 
                           ),
                         ),
                       ),
+                      if (_cameraPermanentlyDenied) ...[
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: openAppSettings,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('Mở Cài đặt'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

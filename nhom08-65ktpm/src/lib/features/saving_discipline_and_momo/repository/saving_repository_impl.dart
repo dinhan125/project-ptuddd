@@ -116,8 +116,13 @@ class SavingRepositoryImpl implements SavingRepository {
           )
         : config;
 
+    // shortcut: single WriteBatch assumes <= 240 trip members (< 500 Firestore ops), chunk if trips grow larger.
     final batch = _firestore.batch();
-    batch.set(_fundConfigDoc(effectiveConfig.tripId), effectiveConfig.toMap());
+    batch.set(
+      _fundConfigDoc(effectiveConfig.tripId),
+      effectiveConfig.toMap(),
+      SetOptions(merge: true),
+    );
 
     final perMemberTotal = (memberCount > 0 && effectiveConfig.targetTotalAmount > 0)
         ? (effectiveConfig.targetTotalAmount / memberCount).round()

@@ -81,6 +81,45 @@ class MoMoFundConfig {
     return 0.0;
   }
 
+  /// Resolves deposit sheet defaults (`amount`, `cycleLabel`, `installmentIndex`, `frequency`)
+  /// consistently between [MomoFundScreen] and `/momo-deposit`.
+  static ({
+    double amount,
+    String cycleLabel,
+    int installmentIndex,
+    SavingFrequency? frequency,
+  }) resolveDepositDefaults({
+    required MoMoFundConfig? config,
+    required SavingPlan? plan,
+    required double targetTotalAmount,
+    required int memberCount,
+    double fallbackAmount = 212000.0,
+  }) {
+    final nextInstallment = (plan?.completedInstallments ?? 0) + 1;
+    final totalInstallments = plan?.totalInstallments ?? 0;
+    final groupSplitAmount = resolveGroupSplitAmount(
+      config: config,
+      targetTotalAmount: targetTotalAmount,
+      memberCount: memberCount,
+    );
+    final frequency = plan?.frequency ?? config?.defaultFrequency;
+    final defaultFreq = config?.defaultFrequency ?? SavingFrequency.weekly;
+    final cycleLabel = totalInstallments > 0
+        ? 'Kỳ $nextInstallment/$totalInstallments'
+        : (groupSplitAmount > 0
+            ? 'Theo ${cycleUnitLabel(defaultFreq)}'
+            : 'Kỳ hiện tại');
+    final amount = (plan != null && plan.installmentAmount > 0)
+        ? plan.installmentAmount
+        : (groupSplitAmount > 0 ? groupSplitAmount : fallbackAmount);
+    return (
+      amount: amount,
+      cycleLabel: cycleLabel,
+      installmentIndex: nextInstallment,
+      frequency: frequency,
+    );
+  }
+
   /// Applies the host's saved group split & frequency to an existing [SavingPlan].
   static SavingPlan applyGroupConfigToPlan({
     required SavingPlan plan,

@@ -257,29 +257,18 @@ class _DepositReceiptRouteBody extends ConsumerWidget {
     final tripSummary = ref.watch(tripSummaryStreamProvider(args.tripId)).value;
     final members = ref.watch(tripMembersStreamProvider(args.tripId)).value ?? const [];
     final plan = plans.where((p) => p.memberId == args.memberId).firstOrNull;
-    final nextInstallment = (plan?.completedInstallments ?? 0) + 1;
-
     final targetAmount = (tripSummary != null && tripSummary.targetBudget > 0)
         ? tripSummary.targetBudget.toDouble()
         : (config?.targetTotalAmount ?? args.targetAmount ?? 0.0);
     final memberCount = members.isNotEmpty
         ? members.length
         : (plans.isNotEmpty ? plans.length : 1);
-    final groupSplitAmount = MoMoFundConfig.resolveGroupSplitAmount(
+    final defaults = MoMoFundConfig.resolveDepositDefaults(
       config: config,
+      plan: plan,
       targetTotalAmount: targetAmount,
       memberCount: memberCount,
     );
-    final defaultFrequency =
-        config?.defaultFrequency ?? SavingFrequency.weekly;
-    final cycleLabel = (plan != null && plan.totalInstallments > 0)
-        ? 'Kỳ $nextInstallment/${plan.totalInstallments}'
-        : (groupSplitAmount > 0
-            ? 'Theo ${MoMoFundConfig.cycleUnitLabel(defaultFrequency)}'
-            : 'Kỳ hiện tại');
-    final amount = (plan != null && plan.installmentAmount > 0)
-        ? plan.installmentAmount
-        : (groupSplitAmount > 0 ? groupSplitAmount : 212000.0);
 
     return Scaffold(
       body: SafeArea(
@@ -288,16 +277,16 @@ class _DepositReceiptRouteBody extends ConsumerWidget {
           memberId: args.memberId,
           memberName: plan?.memberName ?? args.memberName,
           fundName: config?.fundName ?? 'Quỹ nhóm MoMo',
-          amount: amount,
-          installmentIndex: nextInstallment,
-          cycleLabel: cycleLabel,
+          amount: defaults.amount,
+          installmentIndex: defaults.installmentIndex,
+          cycleLabel: defaults.cycleLabel,
           termDueDate: plan != null
               ? SavingStreakCalculator.termDueDateForInstallment(
                   plan: plan,
-                  installmentIndex: nextInstallment,
+                  installmentIndex: defaults.installmentIndex,
                 )
               : null,
-          termFrequency: plan?.frequency ?? config?.defaultFrequency,
+          termFrequency: defaults.frequency,
           momoLink: config?.momoFundDeeplink,
           phoneNumber: config?.momoPhoneNumber,
           qrData: config?.qrCodeUrl,

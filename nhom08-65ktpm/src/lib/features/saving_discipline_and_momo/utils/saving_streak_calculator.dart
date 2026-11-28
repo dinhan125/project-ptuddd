@@ -2,101 +2,11 @@ import '../models/deposit_record.dart';
 import '../models/member_streak.dart';
 import '../models/saving_plan.dart';
 import 'saving_calculator.dart';
+import 'streak_models.dart';
 
-/// Status of a single day cell in the DailyYou Saving Streak Calendar.
-enum StreakDayStatus { checkedIn, late, pending, missed, upcoming }
+export 'streak_models.dart';
 
-/// Urgency level for reminding a member to deposit today based on their saving term.
-enum DepositReminderUrgency { none, dueToday, overdue }
-
-/// Reminder summary indicating whether the member must deposit today for their active term.
-class TodayDepositReminder {
-  final bool shouldWarn;
-  final DepositReminderUrgency urgency;
-  final SavingFrequency frequency;
-  final int? installmentIndex;
-  final DateTime? dueDate;
-  final double amountDue;
-  final int overdueTermCount;
-
-  const TodayDepositReminder({
-    required this.shouldWarn,
-    required this.urgency,
-    required this.frequency,
-    this.installmentIndex,
-    this.dueDate,
-    this.amountDue = 0,
-    this.overdueTermCount = 0,
-  });
-
-  const TodayDepositReminder.none(SavingFrequency frequency)
-      : this(
-          shouldWarn: false,
-          urgency: DepositReminderUrgency.none,
-          frequency: frequency,
-        );
-}
-
-/// Term-based streak summary computed against a member's [SavingPlan] schedule.
-class TermStreakSummary {
-  final int currentStreak;
-  final int longestStreak;
-  final int onTimeTerms;
-  final int lateTerms;
-  final bool isOnStreak;
-  final SavingFrequency frequency;
-
-  const TermStreakSummary({
-    required this.currentStreak,
-    required this.longestStreak,
-    required this.onTimeTerms,
-    required this.lateTerms,
-    required this.isOnStreak,
-    required this.frequency,
-  });
-}
-
-/// Presentation-ready upcoming deposit schedule metadata.
-class IncomingDepositInfo {
-  final int installmentIndex;
-  final DateTime dueDate;
-  final double amount;
-  final int daysUntilDue;
-  final SavingFrequency frequency;
-
-  const IncomingDepositInfo({
-    required this.installmentIndex,
-    required this.dueDate,
-    required this.amount,
-    required this.daysUntilDue,
-    required this.frequency,
-  });
-}
-
-/// Presentation-ready data for one day in the DailyYou Streak Calendar.
-class StreakCalendarDay {
-  final DateTime date;
-  final String isoDate;
-  final StreakDayStatus status;
-  final String? emotionEmoji;
-  final String? journalNote;
-  final bool isNextDue;
-  final bool isScheduledDue;
-  final int? scheduledInstallmentIndex;
-  final double? scheduledAmount;
-
-  const StreakCalendarDay({
-    required this.date,
-    required this.isoDate,
-    required this.status,
-    this.emotionEmoji,
-    this.journalNote,
-    this.isNextDue = false,
-    this.isScheduledDue = false,
-    this.scheduledInstallmentIndex,
-    this.scheduledAmount,
-  });
-}
+part 'streak_calendar_builder.dart';
 
 class _TermCoverageSnapshot {
   final SavingPlan plan;
@@ -521,194 +431,6 @@ class SavingStreakCalculator {
     return null;
   }
 
-  static ({DateTime start, DateTime due}) _groupPeriodWindow({
-    required DateTime anchorDay,
-    required SavingFrequency frequency,
-    required int periodIndex,
-    DateTime? deadlineDay,
-  }) {
-    late final DateTime start;
-    late final DateTime rawDue;
-    switch (frequency) {
-      case SavingFrequency.daily:
-        rawDue = anchorDay.add(Duration(days: periodIndex - 1));
-        start = rawDue;
-      case SavingFrequency.weekly:
-        start = anchorDay.add(Duration(days: (periodIndex - 1) * 7));
-        rawDue = anchorDay.add(Duration(days: periodIndex * 7));
-      case SavingFrequency.monthly:
-        start = periodIndex == 1
-            ? anchorDay
-            : SavingCalculator.addCalendarMonths(anchorDay, periodIndex - 1)
-                .add(const Duration(days: 1));
-        rawDue = SavingCalculator.addCalendarMonths(anchorDay, periodIndex);
-    }
-    final clampedDue = (periodIndex == 1 &&
-            deadlineDay != null &&
-            rawDue.isAfter(deadlineDay) &&
-            !deadlineDay.isBefore(start))
-        ? deadlineDay
-        : rawDue;
-    return (start: start, due: clampedDue);
-  }
-
-  static ({
-    TodayDepositReminder reminder,
-    IncomingDepositInfo? nextIncoming,
-  }) _evaluateGroupDefaultSchedule({
-    required SavingFrequency frequency,
-    required double amount,
-    required DateTime anchorDate,
-    required List<DepositRecord> deposits,
-    required double totalTargetAmount,
-    required double alreadySavedAmount,
-    DateTime? deadlineDate,
-    DateTime? today,
-  }) {
-    if (amount <= 0) {
-      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
-    }
-    final todayDay = _toLocalDay(today ?? DateTime.now());
-    final deadlineDay = deadlineDate != null ? _toLocalDay(deadlineDate) : null;
-    if (deadlineDay != null && todayDay.isAfter(deadlineDay)) {
-      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
-    }
-
-    final activeDeposits = deposits
-        .where((d) => d.status != DepositStatus.rejected)
-        .toList();
-    final approvedSum = activeDeposits
-        .where((d) => d.status == DepositStatus.approved)
-        .fold<double>(0.0, (s, d) => s + d.amount);
-    final pendingSum = activeDeposits
-        .where((d) => d.status == DepositStatus.pending)
-        .fold<double>(0.0, (s, d) => s + d.amount);
-    final effectiveTotalSaved =
-        (alreadySavedAmount > approvedSum ? alreadySavedAmount : approvedSum) +
-            pendingSum;
-
-    if (totalTargetAmount > 0 && effectiveTotalSaved + 1e-6 >= totalTargetAmount) {
-      return (reminder: TodayDepositReminder.none(frequency), nextIncoming: null);
-    }
-
-    bool isDayCoveredByDepositTerm(DateTime day) {
-      for (final d in activeDeposits) {
-        final depDay = _toLocalDay(d.depositDate);
-        final termFreq = d.termFrequency ?? frequency;
-        final spanDays = _termSpanDays(termFreq);
-        if (termFreq == SavingFrequency.daily) {
-          if (_isSameDay(depDay, day)) return true;
-        } else if (d.termDueDate != null) {
-          final dueDay = _toLocalDay(d.termDueDate!);
-          final termStart = dueDay.subtract(Duration(days: spanDays - 1));
-          if (!day.isBefore(termStart) && !day.isAfter(dueDay)) {
-            return true;
-          }
-        } else if (termFreq == SavingFrequency.weekly) {
-          final endDay = depDay.add(const Duration(days: 6));
-          if (!day.isBefore(depDay) && !day.isAfter(endDay)) {
-            return true;
-          }
-        } else {
-          final monthEnd = SavingCalculator.addCalendarMonths(depDay, 1);
-          if (!day.isBefore(depDay) && day.isBefore(monthEnd)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    final rawAnchor = _toLocalDay(anchorDate);
-    final anchorDay = (frequency == SavingFrequency.daily &&
-            todayDay.isBefore(rawAnchor))
-        ? todayDay
-        : rawAnchor;
-    final paidTermsCount = (effectiveTotalSaved + 1e-6) ~/ amount;
-
-    var overdueCount = 0;
-    ({int index, DateTime due})? firstOverdue;
-    ({int index, DateTime due})? dueToday;
-    IncomingDepositInfo? nextIncoming;
-
-    for (var period = 1; period <= 3650; period++) {
-      final window = _groupPeriodWindow(
-        anchorDay: anchorDay,
-        frequency: frequency,
-        periodIndex: period,
-        deadlineDay: deadlineDay,
-      );
-      if (deadlineDay != null && window.due.isAfter(deadlineDay)) {
-        break;
-      }
-
-      final coveredByRecord = activeDeposits.any((d) {
-            final depDay = _toLocalDay(d.depositDate);
-            return (!depDay.isBefore(window.start) &&
-                !depDay.isAfter(window.due));
-          }) ||
-          isDayCoveredByDepositTerm(window.due) ||
-          (frequency == SavingFrequency.daily &&
-              isDayCoveredByDepositTerm(todayDay) &&
-              _isSameDay(window.due, todayDay));
-      final covered = (paidTermsCount >= period) || coveredByRecord;
-
-      if (window.due.isBefore(todayDay)) {
-        if (!covered) {
-          overdueCount += 1;
-          firstOverdue ??= (index: period, due: window.due);
-        }
-        continue;
-      }
-
-      if (!covered && _isSameDay(window.due, todayDay)) {
-        dueToday ??= (index: period, due: window.due);
-      }
-
-      if (!covered) {
-        nextIncoming = IncomingDepositInfo(
-          installmentIndex: period,
-          dueDate: window.due,
-          amount: amount,
-          daysUntilDue: _calendarDayDiff(todayDay, window.due),
-          frequency: frequency,
-        );
-        break;
-      }
-
-      if (period > 1 && window.due.isAfter(todayDay)) {
-        // Skip forward past pre-paid future cycles up to the first unpaid one.
-        continue;
-      }
-    }
-
-    final TodayDepositReminder reminder;
-    if (overdueCount > 0 && firstOverdue != null) {
-      reminder = TodayDepositReminder(
-        shouldWarn: true,
-        urgency: DepositReminderUrgency.overdue,
-        frequency: frequency,
-        installmentIndex: firstOverdue.index,
-        dueDate: firstOverdue.due,
-        amountDue: amount,
-        overdueTermCount: overdueCount,
-      );
-    } else if (dueToday != null) {
-      reminder = TodayDepositReminder(
-        shouldWarn: true,
-        urgency: DepositReminderUrgency.dueToday,
-        frequency: frequency,
-        installmentIndex: dueToday.index,
-        dueDate: dueToday.due,
-        amountDue: amount,
-      );
-    } else {
-      reminder = TodayDepositReminder.none(frequency);
-    }
-
-    return (reminder: reminder, nextIncoming: nextIncoming);
-  }
-
   /// Evaluates whether the member should be warned to deposit today from the
   /// host's group default schedule when [SavingPlan] is not yet created.
   static TodayDepositReminder evaluateGroupDefaultDepositWarning({
@@ -721,7 +443,7 @@ class SavingStreakCalculator {
     DateTime? deadlineDate,
     DateTime? today,
   }) {
-    return _evaluateGroupDefaultSchedule(
+    return _evaluateGroupDefaultScheduleImpl(
       frequency: frequency,
       amount: amount,
       anchorDate: anchorDate,
@@ -745,7 +467,7 @@ class SavingStreakCalculator {
     DateTime? deadlineDate,
     DateTime? today,
   }) {
-    return _evaluateGroupDefaultSchedule(
+    return _evaluateGroupDefaultScheduleImpl(
       frequency: frequency,
       amount: amount,
       anchorDate: anchorDate,
@@ -1022,159 +744,18 @@ class SavingStreakCalculator {
     DateTime? scheduleDeadlineDate,
     DateTime? today,
   }) {
-    final todayDay = _toLocalDay(today ?? DateTime.now());
-    final lateSet = plan != null
-        ? lateDepositIsoDates(plan: plan, deposits: deposits)
-        : const <String>{};
-    final crossTermFilled = plan != null
-        ? _crossTermFilledDates(plan: plan, deposits: deposits, todayDay: todayDay)
-        : const <String>{};
-    final approvedDepositDates = deposits
-        .where((d) => d.status == DepositStatus.approved)
-        .map((d) => formatIsoDate(_toLocalDay(d.depositDate)))
-        .where((iso) => !lateSet.contains(iso));
-    final checkedSet = {
-      ...streak.depositDates.where((iso) => !lateSet.contains(iso)),
-      ...approvedDepositDates,
-      ...crossTermFilled.where((iso) => !lateSet.contains(iso)),
-    };
-    final pendingSet = deposits
-        .where((d) => d.status == DepositStatus.pending)
-        .map((d) => formatIsoDate(_toLocalDay(d.depositDate)))
-        .toSet();
-
-    final effectiveStart = planStartDate ?? plan?.startDate;
-    final firstActivityDay = plan != null
-        ? _toLocalDay(plan.startDate)
-        : _resolveFirstActivityDay(
-            streak: streak,
-            deposits: deposits,
-            planStartDate: effectiveStart,
-          );
-    final isPeriodicPlan = plan != null && plan.frequency != SavingFrequency.daily;
-    final missedDueDates = isPeriodicPlan
-        ? _missedTermDueIsoDates(
-            plan: plan,
-            deposits: deposits,
-            streak: streak,
-            todayDay: todayDay,
-          )
-        : const <String>{};
-    final coverage = plan != null
-        ? _prepareCoverageSnapshot(plan: plan, deposits: deposits, today: todayDay)
-        : null;
-    final nextIncoming = plan != null
-        ? nextIncomingDeposit(plan: plan, deposits: deposits, today: todayDay)
-        : nextIncomingOverride;
-    final nextDueIso =
-        nextIncoming != null ? formatIsoDate(nextIncoming.dueDate) : null;
-    final scheduledMetaByIso = <String, ({int index, double amount})>{};
-    if (nextIncoming != null && nextDueIso != null) {
-      scheduledMetaByIso[nextDueIso] = (
-        index: nextIncoming.installmentIndex,
-        amount: nextIncoming.amount,
-      );
-    }
-    if (coverage != null && plan != null) {
-      if (plan.frequency != SavingFrequency.daily) {
-        for (var i = 0; i < coverage.schedule.length; i++) {
-          final item = coverage.schedule[i];
-          final dueDay = _toLocalDay(item.dueDate);
-          if (dueDay.isBefore(todayDay) || coverage.isTermCovered(i)) continue;
-          scheduledMetaByIso[formatIsoDate(dueDay)] = (
-            index: item.index,
-            amount: item.amount,
-          );
-        }
-      }
-    } else if (plan == null &&
-        nextIncoming != null &&
-        nextIncoming.frequency != SavingFrequency.daily) {
-      final monthEnd = DateTime(month.year, month.month + 1, 0);
-      final deadlineDay =
-          scheduleDeadlineDate != null ? _toLocalDay(scheduleDeadlineDate) : null;
-      final anchorDay = groupAnchorDate != null
-          ? _toLocalDay(groupAnchorDate)
-          : _toLocalDay(nextIncoming.dueDate);
-      var termIndex = groupAnchorDate != null
-          ? nextIncoming.installmentIndex
-          : 0;
-      var cursor = _toLocalDay(nextIncoming.dueDate);
-      while (true) {
-        termIndex += 1;
-        if (groupAnchorDate != null) {
-          cursor = _groupPeriodWindow(
-            anchorDay: anchorDay,
-            frequency: nextIncoming.frequency,
-            periodIndex: termIndex,
-            deadlineDay: deadlineDay,
-          ).due;
-        } else if (nextIncoming.frequency == SavingFrequency.weekly) {
-          cursor = cursor.add(const Duration(days: 7));
-        } else {
-          cursor = SavingCalculator.addCalendarMonths(anchorDay, termIndex);
-        }
-        if (cursor.isAfter(monthEnd)) break;
-        if (deadlineDay != null && cursor.isAfter(deadlineDay)) break;
-        if (!cursor.isBefore(todayDay)) {
-          scheduledMetaByIso[formatIsoDate(cursor)] = (
-            index: termIndex,
-            amount: nextIncoming.amount,
-          );
-        }
-      }
-    }
-
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final cells = <StreakCalendarDay>[];
-
-    for (var day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(month.year, month.month, day);
-      final iso = formatIsoDate(date);
-      final journal = journals[iso];
-
-      final StreakDayStatus status;
-      if (lateSet.contains(iso)) {
-        status = StreakDayStatus.late;
-      } else if (checkedSet.contains(iso)) {
-        status = StreakDayStatus.checkedIn;
-      } else if (pendingSet.contains(iso)) {
-        status = StreakDayStatus.pending;
-      } else if (date.isAfter(todayDay)) {
-        status = StreakDayStatus.upcoming;
-      } else if (isPeriodicPlan) {
-        status = missedDueDates.contains(iso)
-            ? StreakDayStatus.missed
-            : StreakDayStatus.upcoming;
-      } else if (firstActivityDay != null &&
-          !date.isBefore(firstActivityDay) &&
-          date.isBefore(todayDay)) {
-        status = StreakDayStatus.missed;
-      } else {
-        status = StreakDayStatus.upcoming;
-      }
-
-      final scheduledMeta =
-          status == StreakDayStatus.upcoming ? scheduledMetaByIso[iso] : null;
-      final isNextDue =
-          status == StreakDayStatus.upcoming && nextDueIso == iso;
-
-      cells.add(
-        StreakCalendarDay(
-          date: date,
-          isoDate: iso,
-          status: status,
-          emotionEmoji: journal?.emoji,
-          journalNote: journal?.note,
-          isNextDue: isNextDue,
-          isScheduledDue: scheduledMeta != null,
-          scheduledInstallmentIndex: scheduledMeta?.index,
-          scheduledAmount: scheduledMeta?.amount,
-        ),
-      );
-    }
-
-    return cells;
+    return _buildMonthCalendarImpl(
+      month: month,
+      streak: streak,
+      deposits: deposits,
+      journals: journals,
+      plan: plan,
+      planStartDate: planStartDate,
+      nextIncomingOverride: nextIncomingOverride,
+      groupAnchorDate: groupAnchorDate,
+      scheduleDeadlineDate: scheduleDeadlineDate,
+      today: today,
+    );
   }
 
   static List<InstallmentItem> _buildTermSchedule(SavingPlan plan) {

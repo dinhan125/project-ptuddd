@@ -144,12 +144,12 @@ class _MomoQrScannerScreenState extends State<MomoQrScannerScreen>
           if (_hasPermission && _controller != null) ...[
             IconButton(
               tooltip: 'Bật/Tắt đèn flash',
-              icon: const Icon(Icons.flash_on_outlined),
+              icon: const Icon(Icons.flash_on_outlined, color: AppColors.primary),
               onPressed: () => _controller?.toggleTorch(),
             ),
             IconButton(
               tooltip: 'Đổi camera',
-              icon: const Icon(Icons.cameraswitch_outlined),
+              icon: const Icon(Icons.cameraswitch_outlined, color: AppColors.primary),
               onPressed: () => _controller?.switchCamera(),
             ),
           ],

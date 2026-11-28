@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:travel_buddy/features/saving_discipline_and_momo/models/momo_fund_config.dart';
+import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/deposit_receipt_sheet.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/presentation/screens/momo_qr_scanner_screen.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/providers/momo_fund_provider.dart';
 import 'package:travel_buddy/features/saving_discipline_and_momo/repository/in_memory_saving_repository.dart';
@@ -280,6 +281,68 @@ void main() {
         find.textContaining('Quyền camera vẫn chưa được bật'),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'DepositReceiptSheet requests camera permission natively and shows inline Settings button on permanent denial',
+        (tester) async {
+      var openSettingsCount = 0;
+      var requestCount = 0;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('flutter.baseflow.com/permissions/methods'),
+        (call) async {
+          switch (call.method) {
+            case 'checkPermissionStatus':
+              return 0; // denied -> allows native request()
+            case 'requestPermissions':
+              requestCount += 1;
+              final list = call.arguments as List;
+              return {for (final p in list) p: 4}; // permanentlyDenied
+            case 'openAppSettings':
+              openSettingsCount += 1;
+              return true;
+          }
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('flutter.baseflow.com/permissions/methods'),
+          null,
+        );
+      });
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DepositReceiptSheet(fundName: 'Quỹ test'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.text('Chụp / Tải ảnh biên lai giao dịch MoMo'),
+      );
+      await tester.tap(find.text('Chụp / Tải ảnh biên lai giao dịch MoMo'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Chụp ảnh biên lai mới'));
+      await tester.pumpAndSettle();
+
+      expect(requestCount, 1);
+      expect(
+        find.textContaining('Quyền camera đã bị từ chối vĩnh viễn'),
+        findsOneWidget,
+      );
+      expect(find.text('Mở Cài đặt'), findsOneWidget);
+
+      await tester.tap(find.text('Mở Cài đặt'));
+      await tester.pump();
+      expect(openSettingsCount, 1);
     });
   });
 }

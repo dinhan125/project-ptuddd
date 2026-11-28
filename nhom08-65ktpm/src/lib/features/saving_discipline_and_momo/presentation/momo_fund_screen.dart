@@ -191,24 +191,21 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
   Future<void> _openDepositSheet({
     required MoMoFundConfig? fundConfig,
     required SavingPlan? memberPlan,
+    required double targetAmount,
+    required int memberCount,
     double fallbackAmount = 212000.0,
   }) async {
-    final nextInstallment = (memberPlan?.completedInstallments ?? 0) + 1;
-    final totalInstallments = memberPlan?.totalInstallments ?? 0;
-    final hasGroupSplit = fundConfig?.suggestedPerMemberAmount != null &&
-        fundConfig!.suggestedPerMemberAmount! > 0;
-    final cycleLabel = totalInstallments > 0
-        ? 'Kỳ $nextInstallment/$totalInstallments'
-        : (hasGroupSplit
-            ? 'Theo ${MoMoFundConfig.cycleUnitLabel(fundConfig.defaultFrequency)}'
-            : 'Kỳ hiện tại');
-    final amount = (memberPlan != null && memberPlan.installmentAmount > 0)
-        ? memberPlan.installmentAmount
-        : fallbackAmount;
+    final defaults = MoMoFundConfig.resolveDepositDefaults(
+      config: fundConfig,
+      plan: memberPlan,
+      targetTotalAmount: targetAmount,
+      memberCount: memberCount,
+      fallbackAmount: fallbackAmount,
+    );
     final termDueDate = memberPlan != null
         ? SavingStreakCalculator.termDueDateForInstallment(
             plan: memberPlan,
-            installmentIndex: nextInstallment,
+            installmentIndex: defaults.installmentIndex,
           )
         : null;
 
@@ -221,11 +218,11 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         memberId: widget.memberId,
         memberName: memberPlan?.memberName ?? widget.memberName,
         fundName: fundConfig?.fundName ?? 'Quỹ nhóm MoMo',
-        amount: amount,
-        installmentIndex: nextInstallment,
-        cycleLabel: cycleLabel,
+        amount: defaults.amount,
+        installmentIndex: defaults.installmentIndex,
+        cycleLabel: defaults.cycleLabel,
         termDueDate: termDueDate,
-        termFrequency: memberPlan?.frequency ?? fundConfig?.defaultFrequency,
+        termFrequency: defaults.frequency,
         momoLink: fundConfig?.momoFundDeeplink,
         phoneNumber: fundConfig?.momoPhoneNumber,
         qrData: fundConfig?.qrCodeUrl,
@@ -462,7 +459,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
         actions: [
           IconButton(
             tooltip: 'Kế hoạch tích góp',
-            icon: const Icon(Icons.event_repeat_rounded, color: AppColors.primary),
+            icon: const Icon(Icons.event_repeat_rounded, color: AppColors.onPrimaryContainer),
             onPressed: () => _openSavingPlanScreen(
               fundConfig: fundConfig,
               memberCount: memberCount,
@@ -473,7 +470,7 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
           if (isHost)
             IconButton(
               tooltip: 'Thiết lập kế hoạch & Liên kết MoMo',
-              icon: const Icon(Icons.settings_outlined, color: AppColors.primary),
+              icon: const Icon(Icons.settings_outlined, color: AppColors.onPrimaryContainer),
               onPressed: () => _openSetupMoMoSheet(
                 fundConfig,
                 memberCount,
@@ -698,6 +695,8 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
               onDepositTap: () => _openDepositSheet(
                 fundConfig: fundConfig,
                 memberPlan: memberPlan,
+                targetAmount: targetAmount,
+                memberCount: memberCount,
                 fallbackAmount: fallbackDepositAmount,
               ),
             ),
@@ -715,6 +714,8 @@ class _MomoFundContentState extends ConsumerState<_MomoFundContent> {
             onDepositPressed: () => _openDepositSheet(
               fundConfig: fundConfig,
               memberPlan: memberPlan,
+              targetAmount: targetAmount,
+              memberCount: memberCount,
               fallbackAmount: fallbackDepositAmount,
             ),
           ),
